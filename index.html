@@ -489,8 +489,13 @@
     var t = trangThaiDinhVi_(viTri, gpsLoiMa, diaDanh);
     var dong = dongWatermark_(ve, thoiDiem, t.nhan);
 
-    var co = Math.max(13, Math.round(w * 0.026));
-    var le = Math.round(w * 0.028);
+    // Co chu neo theo CANH NGAN, khong theo be ngang. Neo theo be ngang thi
+    // tren anh ngang 16:9 khoi chu an mat hon mot phan ba khung hinh — che
+    // chinh thu can chup. Theo canh ngan thi anh ngang va anh doc deu ~10-20%.
+    var canhNgan = Math.min(w, h);
+    var co = Math.max(13, Math.round(canhNgan * 0.028));
+    var leNgang = Math.round(w * 0.025);
+    var leDoc = Math.round(co * 0.7);
     var caoDong = Math.round(co * 1.34);
 
     ctx.font = '600 ' + co + 'px -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -499,10 +504,10 @@
     // Ngắt dòng dài (địa danh) theo chiều rộng thật.
     var tatCa = [];
     dong.forEach(function (d) {
-      ngatDong_(ctx, d, w - le * 2).forEach(function (x) { tatCa.push(x); });
+      ngatDong_(ctx, d, w - leNgang * 2).forEach(function (x) { tatCa.push(x); });
     });
 
-    var caoKhoi = caoDong * tatCa.length + le * 1.4;
+    var caoKhoi = caoDong * tatCa.length + leDoc * 2;
     var y0 = h - caoKhoi;
 
     // Dải tối phía dưới để chữ đọc được trên mọi nền.
@@ -520,10 +525,10 @@
     ctx.miterLimit = 2;
     ctx.fillStyle = '#ffffff';
 
-    var y = y0 + le * 0.6;
+    var y = y0 + leDoc;
     tatCa.forEach(function (d) {
-      ctx.strokeText(d, le, y);
-      ctx.fillText(d, le, y);
+      ctx.strokeText(d, leNgang, y);
+      ctx.fillText(d, leNgang, y);
       y += caoDong;
     });
 
