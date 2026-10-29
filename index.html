@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Camera QC Việt Phú</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Cam ket MOT giao dien toi: day la man hinh ngam camera, dung o xuong,
+     thuong duoi anh sang manh. Nen toi lam khung ngam doc ro nhat. Moi mau
+     deu khai o day va ve tuong minh, khong muon nen cua trang chu. */
+  :root {
+    --nen:    #0E1311;
+    --mat:    #182320;
+    --vien:   #2A3A34;
+    --chu:    #E8F0EA;
+    --mo:     #8FA396;
+    --xanh:   #2E7D43;
+    --xanh-s: #45A35C;
+    --do:     #E05A52;
+    --vang:   #E0A740;
+    --r:      12px;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--nen);
+    color: var(--chu);
+    font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-text-size-adjust: 100%;
+  }
+  .bao { max-width: 520px; margin: 0 auto; padding: 18px 16px 40px; }
+
+  header { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+  .eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--xanh-s);
+  }
+  h1 { font-size: 21px; font-weight: 700; margin: 0; text-wrap: balance; }
+  .dan { color: var(--mo); font-size: 13.5px; margin: 0; }
+
+  /* --- Khung ngam: trong tam cua trang --- */
+  .khung {
+    position: relative; margin-top: 16px;
+    aspect-ratio: 3 / 4; background: #000;
+    border: 1px solid var(--vien); border-radius: var(--r);
+    overflow: hidden; display: flex; align-items: center; justify-content: center;
+  }
+  .khung video, .khung canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cho { color: var(--mo); font-size: 13.5px; text-align: center; padding: 28px 22px; }
+  .the-trangthai {
+    position: absolute; top: 10px; left: 10px;
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(0,0,0,.62); border-radius: 999px;
+    padding: 5px 11px; font-size: 11.5px; font-weight: 500; letter-spacing: .02em;
+  }
+  .cham { width: 7px; height: 7px; border-radius: 50%; background: var(--xanh-s); }
+  .cham.tat { background: var(--do); }
+
+  /* --- Nut: vua tam ngon tay, khong bi ngon tay che chu --- */
+  .nut-vung { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+  .hang { display: flex; gap: 10px; }
+  .hang > .nut { flex: 1; }
+  .nut {
+    appearance: none; border: 1px solid transparent; border-radius: 10px;
+    min-height: 54px; padding: 12px 16px;
+    font-family: inherit; font-size: 16px; font-weight: 700; line-height: 1.2;
+    cursor: pointer; transition: filter .12s ease;
+  }
+  .nut:focus-visible { outline: 3px solid var(--xanh-s); outline-offset: 2px; }
+  .nut:active { filter: brightness(.9); }
+  .nut-chinh { background: var(--xanh); color: #fff; }
+  .nut-phu { background: var(--mat); color: var(--chu); border-color: var(--vien); }
+
+  /* --- Loi: noi ro chuyen gi va phai lam gi --- */
+  .loi {
+    margin-top: 14px; background: #2B1816;
+    border: 1px solid #5A2B27; border-left: 3px solid var(--do);
+    border-radius: 10px; padding: 14px;
+  }
+  .loi h2 { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #FFB4AE; }
+  .loi p { margin: 0 0 8px; font-size: 13.5px; color: #F0D5D2; }
+  .loi p:last-child { margin-bottom: 0; }
+
+  .xong {
+    margin-top: 14px; background: #122A19;
+    border: 1px solid #27552F; border-left: 3px solid var(--xanh-s);
+    border-radius: 10px; padding: 14px;
+  }
+  .xong h2 { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #9BE2AC; }
+  .xong p { margin: 0; font-size: 13.5px; color: #CDE8D4; }
+
+  /* --- Chan doan: dau ra ky thuat, nen dung chu may --- */
+  .cd { margin-top: 22px; border-top: 1px solid var(--vien); padding-top: 16px; }
+  .cd h2 {
+    font-size: 11px; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--mo); margin: 0 0 10px;
+  }
+  .bang { display: grid; gap: 1px; background: var(--vien);
+          border: 1px solid var(--vien); border-radius: 10px; overflow: hidden; }
+  .dong {
+    display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px;
+    align-items: baseline; background: var(--mat); padding: 10px 12px;
+  }
+  .dong dt { font-size: 13px; color: var(--mo); min-width: 0; }
+  .dong dd {
+    margin: 0; font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12.5px; font-weight: 500; text-align: right;
+    overflow-wrap: anywhere;
+  }
+  .co  { color: var(--xanh-s); }
+  .khong { color: var(--do); }
+  .luu { color: var(--vang); }
+  .ghi { margin: 12px 0 0; font-size: 12.5px; color: var(--mo); }
+  code {
+    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;
+    background: #0A0F0D; border: 1px solid var(--vien);
+    padding: 1px 5px; border-radius: 4px;
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+</head>
+<body>
+<div class="bao">
+  <header>
+    <span class="eyebrow">Hệ thống QA/QC · Nguyên mẫu Gate C0-B</span>
+    <h1>Camera QC Việt Phú</h1>
+    <p class="dan">Trang kiểm chứng camera chạy ngoài Apps Script. Không gửi ảnh
+      đi đâu, không lưu gì, không cần đăng nhập.</p>
+  </header>
+
+  <div class="khung" id="khung">
+    <div class="cho" id="cho">Đang mở camera…</div>
+  </div>
+
+  <div class="nut-vung" id="dieuKhien"></div>
+  <div id="thongBao"></div>
+
+  <section class="cd">
+    <h2>Chẩn đoán môi trường</h2>
+    <dl class="bang" id="bang"></dl>
+    <p class="ghi" id="ghiChu"></p>
+  </section>
+</div>
+
+<script>
+(function () {
+  var khung  = document.getElementById('khung');
+  var dk     = document.getElementById('dieuKhien');
+  var oBao   = document.getElementById('thongBao');
+  var bang   = document.getElementById('bang');
+  var ghiChu = document.getElementById('ghiChu');
+
+  var stream = null;
+  var vid    = null;
+
+  /* ---------- Chan doan ---------- */
+
+  function dong(nhan, chu, lop) {
+    var d = document.createElement('div');
+    d.className = 'dong';
+    var dt = document.createElement('dt'); dt.textContent = nhan;
+    var dd = document.createElement('dd'); dd.textContent = chu;
+    if (lop) dd.className = lop;
+    d.appendChild(dt); d.appendChild(dd);
+    return d;
+  }
+
+  function veChanDoan(loiCam) {
+    bang.textContent = '';
+    var trongKhung = window.self !== window.top;
+
+    bang.appendChild(dong('Ngữ cảnh trang',
+      trongKhung ? 'trong iframe' : 'top-level',
+      trongKhung ? 'khong' : 'co'));
+
+    bang.appendChild(dong('Origin', location.host || '(tệp cục bộ)'));
+
+    bang.appendChild(dong('HTTPS an toàn',
+      window.isSecureContext ? 'có' : 'không',
+      window.isSecureContext ? 'co' : 'khong'));
+
+    var coApi = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    bang.appendChild(dong('mediaDevices', coApi ? 'có' : 'không',
+      coApi ? 'co' : 'khong'));
+
+    var chinhSach = 'không đọc được';
+    var lopCs = 'luu';
+    try {
+      if (document.featurePolicy && document.featurePolicy.allowsFeature) {
+        var duoc = document.featurePolicy.allowsFeature('camera');
+        chinhSach = duoc ? 'cho phép' : 'BỊ CHẶN';
+        lopCs = duoc ? 'co' : 'khong';
+      }
+    } catch (e) { /* Safari khong co featurePolicy — khong doc duoc la binh thuong */ }
+    bang.appendChild(dong('Chính sách quyền camera', chinhSach, lopCs));
+
+    bang.appendChild(dong('Kết quả mở camera',
+      loiCam === null ? 'mở được' : (loiCam || 'đang thử'),
+      loiCam === null ? 'co' : (loiCam ? 'khong' : 'luu')));
+
+    ghiChu.innerHTML = 'Safari trên iPhone không có <code>featurePolicy</code>, ' +
+      'nên dòng chính sách quyền hiện “không đọc được” là bình thường — ' +
+      'dòng quyết định là <b>Kết quả mở camera</b>.';
+  }
+
+  /* ---------- Camera ---------- */
+
+  function huongDan(ten) {
+    if (ten === 'NotAllowedError' || ten === 'SecurityError') {
+      return 'Trình duyệt chặn hoặc bạn đã từ chối quyền camera. Trên iPhone: ' +
+             'chạm biểu tượng “aA” bên trái thanh địa chỉ → Cài đặt trang web → ' +
+             'bật Camera → tải lại trang. Trên Android: chạm biểu tượng ổ khóa → ' +
+             'Quyền → bật Camera.';
+    }
+    if (ten === 'NotFoundError' || ten === 'OverconstrainedError') {
+      return 'Không tìm thấy camera sau trên thiết bị này.';
+    }
+    if (ten === 'NotReadableError') {
+      return 'Một ứng dụng khác đang dùng camera. Hãy đóng ứng dụng đó rồi thử lại.';
+    }
+    return 'Hãy kiểm tra quyền camera của trình duyệt rồi thử lại.';
+  }
+
+  function baoLoi(ten, loiNhan) {
+    khung.textContent = '';
+    var p = document.createElement('div');
+    p.className = 'cho';
+    p.textContent = 'Camera chưa mở được';
+    khung.appendChild(p);
+
+    oBao.innerHTML =
+      '<div class="loi"><h2>' + loiNhan + '</h2>' +
+      '<p>' + huongDan(ten) + '</p>' +
+      '<p>Mã lỗi: <code>' + (ten || 'không rõ') + '</code></p></div>';
+
+    // KHONG co duong du phong sang chon anh co san — do la yeu cau P0.
+    dk.innerHTML = '<button class="nut nut-phu" type="button" id="thu">Thử mở lại camera</button>';
+    document.getElementById('thu').onclick = batDau;
+    veChanDoan(ten || 'lỗi');
+  }
+
+  function batDau() {
+    oBao.textContent = '';
+    dk.textContent = '';
+    khung.textContent = '';
+    var p = document.createElement('div');
+    p.className = 'cho'; p.textContent = 'Đang mở camera…';
+    khung.appendChild(p);
+    veChanDoan(undefined);
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return baoLoi('KhongHoTro', 'Trình duyệt này không mở được camera trực tiếp.');
+    }
+
+    // CHI video. Khong xin microphone: khong can thi khong doi quyen.
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false
+    }).then(function (s) {
+      stream = s;
+      veLivePreview();
+      veChanDoan(null);
+    }).catch(function (e) {
+      baoLoi(e && e.name, 'Không mở được camera.');
+    });
+  }
+
+  function veLivePreview() {
+    khung.textContent = '';
+    vid = document.createElement('video');
+    vid.setAttribute('playsinline', '');
+    vid.setAttribute('autoplay', '');
+    vid.muted = true;
+    vid.srcObject = stream;
+    khung.appendChild(vid);
+
+    var the = document.createElement('div');
+    the.className = 'the-trangthai';
+    the.innerHTML = '<span class="cham"></span>Camera đang bật';
+    khung.appendChild(the);
+
+    dk.innerHTML = '<button class="nut nut-chinh" type="button" id="chup">Chụp ảnh</button>';
+    document.getElementById('chup').onclick = chup;
+  }
+
+  function chup() {
+    if (!vid || !vid.videoWidth) return;
+    var w = vid.videoWidth, h = vid.videoHeight;
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(vid, 0, 0, w, h);
+
+    khung.textContent = '';
+    khung.appendChild(c);
+
+    dk.innerHTML =
+      '<div class="hang">' +
+        '<button class="nut nut-phu" type="button" id="lai">Chụp lại</button>' +
+        '<button class="nut nut-chinh" type="button" id="dung">Dùng ảnh này</button>' +
+      '</div>';
+    document.getElementById('lai').onclick = veLivePreview;
+    document.getElementById('dung').onclick = function () {
+      oBao.innerHTML = '<div class="xong"><h2>Chụp trực tiếp thành công</h2>' +
+        '<p>Ảnh ' + w + '×' + h + ' lấy thẳng từ luồng camera, không qua bộ chọn tệp. ' +
+        'Ở Gate C1 ảnh sẽ được đóng watermark và lưu vào báo cáo nháp.</p></div>';
+      dk.innerHTML = '<button class="nut nut-phu" type="button" id="tiep">Chụp ảnh khác</button>';
+      document.getElementById('tiep').onclick = function () {
+        oBao.textContent = ''; veLivePreview();
+      };
+    };
+  }
+
+  /* ---------- Giai phong camera khi roi trang ---------- */
+
+  function dungStream() {
+    if (!stream) return;
+    stream.getTracks().forEach(function (t) { t.stop(); });
+    stream = null;
+  }
+  window.addEventListener('pagehide', dungStream);
+  window.addEventListener('beforeunload', dungStream);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') dungStream();
+  });
+
+  batDau();
+})();
+</script>
+</body>
+</html>
