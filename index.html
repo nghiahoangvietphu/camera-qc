@@ -1,334 +1,628 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Camera QC Việt Phú</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="referrer" content="no-referrer">
+<title>Camera QC — Việt Phú</title>
 <style>
-  /* Cam ket MOT giao dien toi: day la man hinh ngam camera, dung o xuong,
-     thuong duoi anh sang manh. Nen toi lam khung ngam doc ro nhat. Moi mau
-     deu khai o day va ve tuong minh, khong muon nen cua trang chu. */
   :root {
-    --nen:    #0E1311;
-    --mat:    #182320;
-    --vien:   #2A3A34;
-    --chu:    #E8F0EA;
-    --mo:     #8FA396;
-    --xanh:   #2E7D43;
-    --xanh-s: #45A35C;
-    --do:     #E05A52;
-    --vang:   #E0A740;
-    --r:      12px;
-    color-scheme: dark;
+    --nen: #0b0d10; --chu: #f6f7f9; --mo: #9aa3af;
+    --chinh: #16a34a; --chinh-nhan: #22c55e;
+    --phu: rgba(255,255,255,.14); --vien: rgba(255,255,255,.22);
+    --canh: #dc2626; --vang: #d97706;
+    --an-toan-duoi: env(safe-area-inset-bottom, 0px);
+    --an-toan-tren: env(safe-area-inset-top, 0px);
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--nen);
-    color: var(--chu);
-    font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
-    font-size: 15px;
-    line-height: 1.55;
-    -webkit-text-size-adjust: 100%;
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; background: var(--nen); color: var(--chu);
+    font: 400 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
   }
-  .bao { max-width: 520px; margin: 0 auto; padding: 18px 16px 40px; }
+  #san { position: fixed; inset: 0; display: flex; flex-direction: column; }
 
-  header { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
-  .eyebrow {
-    font-size: 11px; font-weight: 700; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--xanh-s);
+  /* --- Vung hinh: video truc tiep hoac anh da dong dau --- */
+  #khung { position: relative; flex: 1; min-height: 0; background: #000; }
+  #video, #anh {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; background: #000;
   }
-  h1 { font-size: 21px; font-weight: 700; margin: 0; text-wrap: balance; }
-  .dan { color: var(--mo); font-size: 13.5px; margin: 0; }
+  #anh { display: none; }
+  #video.day { object-fit: cover; }
 
-  /* --- Khung ngam: trong tam cua trang --- */
-  .khung {
-    position: relative; margin-top: 16px;
-    aspect-ratio: 3 / 4; background: #000;
-    border: 1px solid var(--vien); border-radius: var(--r);
-    overflow: hidden; display: flex; align-items: center; justify-content: center;
+  /* --- Thanh tren: ma phieu, vai tro, dinh vi --- */
+  #tren {
+    position: absolute; left: 0; right: 0; top: 0; z-index: 3;
+    padding: calc(var(--an-toan-tren) + 10px) 12px 14px;
+    background: linear-gradient(180deg, rgba(0,0,0,.72), rgba(0,0,0,0));
+    display: flex; flex-direction: column; gap: 6px; pointer-events: none;
   }
-  .khung video, .khung canvas { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .cho { color: var(--mo); font-size: 13.5px; text-align: center; padding: 28px 22px; }
-  .the-trangthai {
-    position: absolute; top: 10px; left: 10px;
-    display: inline-flex; align-items: center; gap: 6px;
-    background: rgba(0,0,0,.62); border-radius: 999px;
-    padding: 5px 11px; font-size: 11.5px; font-weight: 500; letter-spacing: .02em;
+  #nhanPhieu { font-size: 15px; font-weight: 600; letter-spacing: .2px; }
+  #nhanPhieu span { color: var(--mo); font-weight: 400; }
+  .chip {
+    align-self: flex-start; display: inline-flex; align-items: center; gap: 6px;
+    max-width: 100%; padding: 4px 10px; border-radius: 999px;
+    background: rgba(0,0,0,.5); border: 1px solid var(--vien);
+    font-size: 12.5px; line-height: 1.3;
   }
-  .cham { width: 7px; height: 7px; border-radius: 50%; background: var(--xanh-s); }
-  .cham.tat { background: var(--do); }
+  .chip b { width: 7px; height: 7px; border-radius: 50%; background: var(--mo); flex: none; }
+  .chip.ok b { background: var(--chinh-nhan); }
+  .chip.cho b { background: var(--vang); }
+  .chip.khong b { background: var(--canh); }
+  .chip u { text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* --- Nut: vua tam ngon tay, khong bi ngon tay che chu --- */
-  .nut-vung { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-  .hang { display: flex; gap: 10px; }
-  .hang > .nut { flex: 1; }
+  /* --- Thanh duoi: dieu khien --- */
+  #duoi {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
+    padding: 18px 16px calc(var(--an-toan-duoi) + 18px);
+    background: linear-gradient(0deg, rgba(0,0,0,.78), rgba(0,0,0,0));
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+  }
+  #chup {
+    width: 78px; height: 78px; border-radius: 50%; flex: none;
+    background: #fff; border: 5px solid rgba(255,255,255,.38);
+    box-shadow: 0 2px 18px rgba(0,0,0,.5);
+  }
+  #chup:active { transform: scale(.94); }
+  #chup:disabled { opacity: .4; }
   .nut {
-    appearance: none; border: 1px solid transparent; border-radius: 10px;
-    min-height: 54px; padding: 12px 16px;
-    font-family: inherit; font-size: 16px; font-weight: 700; line-height: 1.2;
-    cursor: pointer; transition: filter .12s ease;
+    flex: 1 1 0; min-height: 56px; padding: 14px 16px; border-radius: 14px;
+    font: 600 17px/1.2 inherit; color: var(--chu);
+    background: var(--phu); border: 1px solid var(--vien);
   }
-  .nut:focus-visible { outline: 3px solid var(--xanh-s); outline-offset: 2px; }
-  .nut:active { filter: brightness(.9); }
-  .nut-chinh { background: var(--xanh); color: #fff; }
-  .nut-phu { background: var(--mat); color: var(--chu); border-color: var(--vien); }
+  .nut-chinh { background: var(--chinh); border-color: var(--chinh); }
+  .nut:active { transform: scale(.985); }
+  .nut:disabled { opacity: .5; }
+  #demAnh { position: absolute; right: 16px; bottom: calc(var(--an-toan-duoi) + 34px);
+            font-size: 13px; color: var(--mo); }
 
-  /* --- Loi: noi ro chuyen gi va phai lam gi --- */
-  .loi {
-    margin-top: 14px; background: #2B1816;
-    border: 1px solid #5A2B27; border-left: 3px solid var(--do);
-    border-radius: 10px; padding: 14px;
+  /* --- Che phu: dang luu / loi / huong dan --- */
+  #che {
+    position: absolute; inset: 0; z-index: 5; display: none;
+    align-items: center; justify-content: center; padding: 24px;
+    background: rgba(5,7,10,.93); text-align: center;
   }
-  .loi h2 { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #FFB4AE; }
-  .loi p { margin: 0 0 8px; font-size: 13.5px; color: #F0D5D2; }
-  .loi p:last-child { margin-bottom: 0; }
+  #che.hien { display: flex; }
+  #cheTrong { max-width: 420px; display: flex; flex-direction: column; gap: 14px; }
+  #cheTieuDe { font-size: 19px; font-weight: 700; }
+  #cheChu { color: var(--mo); font-size: 15px; white-space: pre-line; }
+  .vong {
+    width: 34px; height: 34px; margin: 0 auto; border-radius: 50%;
+    border: 3px solid var(--phu); border-top-color: var(--chinh-nhan);
+    animation: quay .8s linear infinite;
+  }
+  @keyframes quay { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .vong { animation-duration: 2.4s; } }
 
-  .xong {
-    margin-top: 14px; background: #122A19;
-    border: 1px solid #27552F; border-left: 3px solid var(--xanh-s);
-    border-radius: 10px; padding: 14px;
+  #banh {
+    position: absolute; left: 50%; transform: translateX(-50%); z-index: 6;
+    bottom: calc(var(--an-toan-duoi) + 110px); max-width: calc(100% - 32px);
+    padding: 11px 16px; border-radius: 12px; background: rgba(12,15,20,.95);
+    border: 1px solid var(--vien); font-size: 14.5px; text-align: center;
+    opacity: 0; transition: opacity .18s; pointer-events: none;
   }
-  .xong h2 { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #9BE2AC; }
-  .xong p { margin: 0; font-size: 13.5px; color: #CDE8D4; }
-
-  /* --- Chan doan: dau ra ky thuat, nen dung chu may --- */
-  .cd { margin-top: 22px; border-top: 1px solid var(--vien); padding-top: 16px; }
-  .cd h2 {
-    font-size: 11px; font-weight: 700; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--mo); margin: 0 0 10px;
-  }
-  .bang { display: grid; gap: 1px; background: var(--vien);
-          border: 1px solid var(--vien); border-radius: 10px; overflow: hidden; }
-  .dong {
-    display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px;
-    align-items: baseline; background: var(--mat); padding: 10px 12px;
-  }
-  .dong dt { font-size: 13px; color: var(--mo); min-width: 0; }
-  .dong dd {
-    margin: 0; font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 12.5px; font-weight: 500; text-align: right;
-    overflow-wrap: anywhere;
-  }
-  .co  { color: var(--xanh-s); }
-  .khong { color: var(--do); }
-  .luu { color: var(--vang); }
-  .ghi { margin: 12px 0 0; font-size: 12.5px; color: var(--mo); }
-  code {
-    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;
-    background: #0A0F0D; border: 1px solid var(--vien);
-    padding: 1px 5px; border-radius: 4px;
-  }
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  #banh.hien { opacity: 1; }
+  #banh.loi { border-color: var(--canh); }
 </style>
-
 </head>
 <body>
-<div class="bao">
-  <header>
-    <span class="eyebrow">Hệ thống QA/QC · Nguyên mẫu Gate C0-B</span>
-    <h1>Camera QC Việt Phú</h1>
-    <p class="dan">Trang kiểm chứng camera chạy ngoài Apps Script. Không gửi ảnh
-      đi đâu, không lưu gì, không cần đăng nhập.</p>
-  </header>
+<div id="san">
+  <div id="khung">
+    <video id="video" playsinline autoplay muted></video>
+    <img id="anh" alt="Ảnh vừa chụp, đã đóng dấu thông tin ghi hình">
 
-  <div class="khung" id="khung">
-    <div class="cho" id="cho">Đang mở camera…</div>
+    <div id="tren">
+      <div id="nhanPhieu">—</div>
+      <div class="chip" id="chipGps"><b></b><u>Đang xác định vị trí…</u></div>
+    </div>
+
+    <div id="duoi"></div>
+    <div id="demAnh"></div>
+    <div id="banh"></div>
   </div>
 
-  <div class="nut-vung" id="dieuKhien"></div>
-  <div id="thongBao"></div>
-
-  <section class="cd">
-    <h2>Chẩn đoán môi trường</h2>
-    <dl class="bang" id="bang"></dl>
-    <p class="ghi" id="ghiChu"></p>
-  </section>
+  <div id="che" class="hien">
+    <div id="cheTrong">
+      <div class="vong" id="cheVong"></div>
+      <div id="cheTieuDe">Đang mở camera…</div>
+      <div id="cheChu"></div>
+      <div id="cheNut"></div>
+    </div>
+  </div>
 </div>
 
 <script>
 (function () {
-  var khung  = document.getElementById('khung');
-  var dk     = document.getElementById('dieuKhien');
-  var oBao   = document.getElementById('thongBao');
-  var bang   = document.getElementById('bang');
-  var ghiChu = document.getElementById('ghiChu');
+  'use strict';
 
-  var stream = null;
-  var vid    = null;
+  /* ===================================================================
+     Camera QC — Cổng C
+     Trang HTTPS độc lập trên GitHub Pages. KHÔNG có file picker: ảnh chỉ
+     đến từ getUserMedia -> canvas. Watermark được đóng vào PIXEL trước
+     khi tải lên, nên ảnh lưu trong hồ sơ luôn mang đủ năm thông tin.
 
-  /* ---------- Chan doan ---------- */
+     Vé và URL API đi qua HASH FRAGMENT (#), không qua query string: hash
+     không bao giờ được gửi tới máy chủ, nên không lọt vào log của GitHub
+     Pages. Vé chứa họ tên và email người chụp.
+     =================================================================== */
 
-  function dong(nhan, chu, lop) {
-    var d = document.createElement('div');
-    d.className = 'dong';
-    var dt = document.createElement('dt'); dt.textContent = nhan;
-    var dd = document.createElement('dd'); dd.textContent = chu;
-    if (lop) dd.className = lop;
-    d.appendChild(dt); d.appendChild(dd);
-    return d;
+  var CANH_DAI_MAX = 1600;          // khớp giới hạn 3 MB của API
+  var CHAT_LUONG = 0.82;
+  var GPS_CHO_MS = 12000;           // chờ định vị lần đầu
+  var DIA_DANH_CHO_MS = 1200;       // chờ địa danh ngay trước khi vẽ, có chặn trên
+
+  var DINH_VI = {
+    CO_DIA_DANH: 'CO_DIA_DANH', CHUA_RO_DIA_DANH: 'CHUA_RO_DIA_DANH',
+    KHONG_CO_GPS: 'KHONG_CO_GPS', TU_CHOI_QUYEN: 'TU_CHOI_QUYEN'
+  };
+
+  /* =============== Hàm thuần — bộ kiểm thử gọi trực tiếp =============== */
+
+  /** Bốn trạng thái định vị PO đã chốt. `loiMa` là code của GeolocationPositionError. */
+  function trangThaiDinhVi_(viTri, loiMa, diaDanh) {
+    if (loiMa === 1) {
+      return { ma: DINH_VI.TU_CHOI_QUYEN, nhan: 'Người dùng từ chối cấp quyền ghi vị trí' };
+    }
+    if (!viTri || !isFinite(viTri.lat) || !isFinite(viTri.lng)) {
+      return { ma: DINH_VI.KHONG_CO_GPS, nhan: 'Không rõ địa điểm ghi hình' };
+    }
+    var toaDo = moTaToaDo_(viTri);
+    if (diaDanh) {
+      return { ma: DINH_VI.CO_DIA_DANH, nhan: diaDanh + ' ' + toaDo };
+    }
+    return { ma: DINH_VI.CHUA_RO_DIA_DANH, nhan: 'Chưa xác định địa danh ' + toaDo };
   }
 
-  function veChanDoan(loiCam) {
-    bang.textContent = '';
-    var trongKhung = window.self !== window.top;
+  function moTaToaDo_(viTri) {
+    var s = '(' + Number(viTri.lat).toFixed(6) + ', ' + Number(viTri.lng).toFixed(6);
+    if (isFinite(viTri.do_chinh_xac)) s += ' ±' + Math.round(viTri.do_chinh_xac) + 'm';
+    return s + ')';
+  }
 
-    bang.appendChild(dong('Ngữ cảnh trang',
-      trongKhung ? 'trong iframe' : 'top-level',
-      trongKhung ? 'khong' : 'co'));
+  function hai_(n) { return (n < 10 ? '0' : '') + n; }
 
-    bang.appendChild(dong('Origin', location.host || '(tệp cục bộ)'));
+  /** Giờ địa phương của thiết bị, định dạng người Việt đọc được. */
+  function dinhDangGio_(ms) {
+    var d = new Date(ms);
+    return hai_(d.getDate()) + '/' + hai_(d.getMonth() + 1) + '/' + d.getFullYear() +
+           ' ' + hai_(d.getHours()) + ':' + hai_(d.getMinutes()) + ':' + hai_(d.getSeconds());
+  }
 
-    bang.appendChild(dong('HTTPS an toàn',
-      window.isSecureContext ? 'có' : 'không',
-      window.isSecureContext ? 'co' : 'khong'));
+  /** Năm thông tin đóng vào ảnh. Thứ tự này là thứ tự vẽ từ trên xuống. */
+  function dongWatermark_(ve, thoiDiemMs, dinhViNhan) {
+    return [
+      String(ve.ma_phieu || '—') + '  ·  ' + String(ve.vai_tro || '—'),
+      String(ve.ho_ten || '—'),
+      dinhDangGio_(thoiDiemMs),
+      String(dinhViNhan || 'Không rõ địa điểm ghi hình')
+    ];
+  }
 
-    var coApi = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-    bang.appendChild(dong('mediaDevices', coApi ? 'có' : 'không',
-      coApi ? 'co' : 'khong'));
+  /** Ngắt dòng theo chiều rộng thật của chữ trên canvas. */
+  function ngatDong_(ctx, chu, rongToiDa) {
+    var tu = String(chu).split(/\s+/), ds = [], d = '';
+    for (var i = 0; i < tu.length; i++) {
+      var thu = d ? d + ' ' + tu[i] : tu[i];
+      if (ctx.measureText(thu).width <= rongToiDa || !d) { d = thu; }
+      else { ds.push(d); d = tu[i]; }
+    }
+    if (d) ds.push(d);
+    return ds;
+  }
 
-    var chinhSach = 'không đọc được';
-    var lopCs = 'luu';
+  /* =============== Trạng thái =============== */
+
+  var E = function (id) { return document.getElementById(id); };
+  var stream = null, ve = null, apiUrl = '', neo = null;
+  var viTri = null, gpsLoiMa = 0, diaDanh = '', dangTraDiaDanh = null;
+  var anhHienTai = null, khoaHienTai = '', daLuu = 0, dangLuu = false;
+
+  /* =============== Che phủ & thông báo =============== */
+
+  function che(tieuDe, chu, nutHtml, quay) {
+    E('cheTieuDe').textContent = tieuDe;
+    E('cheChu').textContent = chu || '';
+    E('cheNut').innerHTML = nutHtml || '';
+    E('cheVong').style.display = quay ? 'block' : 'none';
+    E('che').classList.add('hien');
+  }
+  function heChe() { E('che').classList.remove('hien'); }
+
+  var banhHen = 0;
+  function banh(chu, loi) {
+    var b = E('banh');
+    b.textContent = chu;
+    b.className = 'hien' + (loi ? ' loi' : '');
+    clearTimeout(banhHen);
+    banhHen = setTimeout(function () { b.className = loi ? 'loi' : ''; }, loi ? 5200 : 2600);
+  }
+
+  /* =============== Vé =============== */
+
+  function giaiB64Url_(s) {
+    var t = String(s).replace(/-/g, '+').replace(/_/g, '/');
+    while (t.length % 4) t += '=';
+    return decodeURIComponent(Array.prototype.map.call(atob(t), function (c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+  }
+
+  function docThamSo_() {
+    var h = String(location.hash || '').replace(/^#/, '');
+    var o = {};
+    h.split('&').forEach(function (p) {
+      var i = p.indexOf('=');
+      if (i > 0) o[p.slice(0, i)] = decodeURIComponent(p.slice(i + 1));
+    });
+    return o;
+  }
+
+  function napVe_() {
+    var ts = docThamSo_();
+    if (!ts.ve || !ts.api) return 'Thiếu tham số';
+    var than = String(ts.ve).split('.')[0];
+    var p = JSON.parse(giaiB64Url_(than));
+    ve = p; ve._chuoi = ts.ve;
+    apiUrl = ts.api;
+    if (!/^https:\/\/script\.google\.com\//.test(apiUrl)) return 'Địa chỉ API không hợp lệ';
+    // Neo giờ theo `iat` do máy chủ phát, cộng thời gian đã trôi kể từ lúc tải
+    // trang. Nhờ vậy giờ đóng vào ảnh không phụ thuộc đồng hồ thiết bị.
+    neo = { goc: Number(p.iat) * 1000, moc: now_() };
+    return '';
+  }
+
+  function now_() {
+    return (window.performance && performance.now) ? performance.now() : Date.now();
+  }
+  /** Giờ ghi hình: neo theo máy chủ, không theo đồng hồ máy. */
+  function gioGhiHinh_() {
+    if (!neo || !isFinite(neo.goc)) return Date.now();
+    return neo.goc + (now_() - neo.moc);
+  }
+  function conHan_() {
+    return !ve || !isFinite(ve.exp) || gioGhiHinh_() < Number(ve.exp) * 1000;
+  }
+
+  /* =============== Định vị =============== */
+
+  function veChipGps() {
+    var t = trangThaiDinhVi_(viTri, gpsLoiMa, diaDanh);
+    var lop = t.ma === DINH_VI.CO_DIA_DANH ? 'ok'
+            : t.ma === DINH_VI.CHUA_RO_DIA_DANH ? 'cho' : 'khong';
+    var c = E('chipGps');
+    c.className = 'chip ' + lop;
+    c.querySelector('u').textContent = t.nhan;
+  }
+
+  function batDinhVi() {
+    if (!navigator.geolocation) { gpsLoiMa = 2; veChipGps(); return; }
+    navigator.geolocation.getCurrentPosition(function (p) {
+      gpsLoiMa = 0;
+      viTri = { lat: p.coords.latitude, lng: p.coords.longitude,
+                do_chinh_xac: p.coords.accuracy, thoi_diem: p.timestamp };
+      veChipGps();
+      hoiDiaDanh();
+    }, function (e) {
+      gpsLoiMa = (e && e.code) || 2;      // 1 = từ chối quyền
+      veChipGps();
+    }, { enableHighAccuracy: true, timeout: GPS_CHO_MS, maximumAge: 30000 });
+  }
+
+  /** Hỏi địa danh qua API. Thất bại thì im lặng — trạng thái 2 vẫn hợp lệ. */
+  function hoiDiaDanh() {
+    if (!viTri || diaDanh || dangTraDiaDanh) return;
+    dangTraDiaDanh = goiApi({ viec: 'dia_danh', ve: ve._chuoi,
+                              lat: viTri.lat, lng: viTri.lng })
+      .then(function (r) {
+        if (r && r.ok && r.ket_qua && r.ket_qua.dia_danh) {
+          diaDanh = String(r.ket_qua.dia_danh);
+          veChipGps();
+        }
+      })
+      .catch(function () { /* địa danh chỉ là tiện ích */ })
+      .then(function () { dangTraDiaDanh = null; });
+    return dangTraDiaDanh;
+  }
+
+  function gpsGuiLen_() {
+    var t = trangThaiDinhVi_(viTri, gpsLoiMa, diaDanh);
+    var g = { trang_thai: t.ma };
+    if (viTri) {
+      g.lat = viTri.lat; g.lng = viTri.lng;
+      g.do_chinh_xac = viTri.do_chinh_xac; g.thoi_diem = viTri.thoi_diem;
+    }
+    return g;
+  }
+
+  /* =============== Camera =============== */
+
+  /** Trang bi nhung trong iframe ma khong duoc cap allow="camera" thi
+      getUserMedia bao NotAllowedError y nhu khi nguoi dung tu choi. Phan biet
+      duoc hai cai nay la bai hoc cua C0: dung bat nguoi dung di sua Cai dat
+      khi loi thuc ra nam o trang nhung. */
+  function trongIframe_() {
+    try { return window.self !== window.top; } catch (e) { return true; }
+  }
+  function chinhSachChanCamera_() {
     try {
-      if (document.featurePolicy && document.featurePolicy.allowsFeature) {
-        var duoc = document.featurePolicy.allowsFeature('camera');
-        chinhSach = duoc ? 'cho phép' : 'BỊ CHẶN';
-        lopCs = duoc ? 'co' : 'khong';
-      }
-    } catch (e) { /* Safari khong co featurePolicy — khong doc duoc la binh thuong */ }
-    bang.appendChild(dong('Chính sách quyền camera', chinhSach, lopCs));
-
-    bang.appendChild(dong('Kết quả mở camera',
-      loiCam === null ? 'mở được' : (loiCam || 'đang thử'),
-      loiCam === null ? 'co' : (loiCam ? 'khong' : 'luu')));
-
-    ghiChu.innerHTML = 'Safari trên iPhone không có <code>featurePolicy</code>, ' +
-      'nên dòng chính sách quyền hiện “không đọc được” là bình thường — ' +
-      'dòng quyết định là <b>Kết quả mở camera</b>.';
+      return !!(document.featurePolicy && document.featurePolicy.allowsFeature &&
+                !document.featurePolicy.allowsFeature('camera'));
+    } catch (e) { return false; }
   }
 
-  /* ---------- Camera ---------- */
-
-  function huongDan(ten) {
-    if (ten === 'NotAllowedError' || ten === 'SecurityError') {
-      return 'Trình duyệt chặn hoặc bạn đã từ chối quyền camera. Trên iPhone: ' +
-             'chạm biểu tượng “aA” bên trái thanh địa chỉ → Cài đặt trang web → ' +
-             'bật Camera → tải lại trang. Trên Android: chạm biểu tượng ổ khóa → ' +
-             'Quyền → bật Camera.';
+  function moCamera() {
+    if (!window.isSecureContext) {
+      return che('Trang phải chạy trên HTTPS',
+                 'Trình duyệt chỉ cho mở camera trên kết nối an toàn. Hãy mở trang ' +
+                 'này bằng đường dẫn https://.', '', false);
     }
-    if (ten === 'NotFoundError' || ten === 'OverconstrainedError') {
-      return 'Không tìm thấy camera sau trên thiết bị này.';
-    }
-    if (ten === 'NotReadableError') {
-      return 'Một ứng dụng khác đang dùng camera. Hãy đóng ứng dụng đó rồi thử lại.';
-    }
-    return 'Hãy kiểm tra quyền camera của trình duyệt rồi thử lại.';
-  }
-
-  function baoLoi(ten, loiNhan) {
-    khung.textContent = '';
-    var p = document.createElement('div');
-    p.className = 'cho';
-    p.textContent = 'Camera chưa mở được';
-    khung.appendChild(p);
-
-    oBao.innerHTML =
-      '<div class="loi"><h2>' + loiNhan + '</h2>' +
-      '<p>' + huongDan(ten) + '</p>' +
-      '<p>Mã lỗi: <code>' + (ten || 'không rõ') + '</code></p></div>';
-
-    // KHONG co duong du phong sang chon anh co san — do la yeu cau P0.
-    dk.innerHTML = '<button class="nut nut-phu" type="button" id="thu">Thử mở lại camera</button>';
-    document.getElementById('thu').onclick = batDau;
-    veChanDoan(ten || 'lỗi');
-  }
-
-  function batDau() {
-    oBao.textContent = '';
-    dk.textContent = '';
-    khung.textContent = '';
-    var p = document.createElement('div');
-    p.className = 'cho'; p.textContent = 'Đang mở camera…';
-    khung.appendChild(p);
-    veChanDoan(undefined);
-
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      return baoLoi('KhongHoTro', 'Trình duyệt này không mở được camera trực tiếp.');
+      return che('Thiết bị không hỗ trợ camera',
+                 'Trình duyệt này không cho phép mở camera trực tiếp. Hãy dùng Safari ' +
+                 'hoặc Chrome bản mới trên điện thoại.', '', false);
     }
-
-    // CHI video. Khong xin microphone: khong can thi khong doi quyen.
+    che('Đang mở camera…', 'Hãy cho phép truy cập camera khi được hỏi.', '', true);
     navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
+      video: { facingMode: { ideal: 'environment' },
+               width: { ideal: 1920 }, height: { ideal: 1080 } },
       audio: false
     }).then(function (s) {
       stream = s;
-      veLivePreview();
-      veChanDoan(null);
+      var v = E('video');
+      v.srcObject = s;
+      return v.play().catch(function () {});
+    }).then(function () {
+      heChe();
+      veLive();
     }).catch(function (e) {
-      baoLoi(e && e.name, 'Không mở được camera.');
+      loiCamera(e);
     });
   }
 
-  function veLivePreview() {
-    khung.textContent = '';
-    vid = document.createElement('video');
-    vid.setAttribute('playsinline', '');
-    vid.setAttribute('autoplay', '');
-    vid.muted = true;
-    vid.srcObject = stream;
-    khung.appendChild(vid);
-
-    var the = document.createElement('div');
-    the.className = 'the-trangthai';
-    the.innerHTML = '<span class="cham"></span>Camera đang bật';
-    khung.appendChild(the);
-
-    dk.innerHTML = '<button class="nut nut-chinh" type="button" id="chup">Chụp ảnh</button>';
-    document.getElementById('chup').onclick = chup;
+  function loiCamera(e) {
+    var ten = (e && e.name) || 'Lỗi';
+    var chu, nut = '<button class="nut" type="button" id="thuLai">Thử mở lại camera</button>';
+    if (ten === 'NotAllowedError' && (trongIframe_() || chinhSachChanCamera_())) {
+      chu = 'Trang đang bị nhúng trong một trang khác và trang đó không cho phép ' +
+            'dùng camera.\n\nHãy mở Camera QC bằng đường dẫn riêng trên Safari ' +
+            'hoặc Chrome, đừng mở trong khung nhúng.';
+    } else if (ten === 'NotAllowedError') {
+      chu = 'Bạn đã từ chối quyền camera, hoặc trình duyệt đang chặn.\n\n' +
+            'iPhone: Cài đặt → Safari → Camera → Cho phép. Sau đó tải lại trang.';
+    } else if (ten === 'NotFoundError' || ten === 'OverconstrainedError') {
+      chu = 'Không tìm thấy camera phù hợp trên thiết bị này.';
+    } else if (ten === 'NotReadableError') {
+      chu = 'Camera đang bị ứng dụng khác chiếm. Hãy đóng ứng dụng đó rồi thử lại.';
+    } else {
+      chu = 'Không mở được camera (' + ten + ').';
+    }
+    che('Không mở được camera', chu, nut, false);
+    var b = E('thuLai');
+    if (b) b.onclick = function () { moCamera(); };
   }
 
-  function chup() {
-    if (!vid || !vid.videoWidth) return;
-    var w = vid.videoWidth, h = vid.videoHeight;
-    var c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    c.getContext('2d').drawImage(vid, 0, 0, w, h);
-
-    khung.textContent = '';
-    khung.appendChild(c);
-
-    dk.innerHTML =
-      '<div class="hang">' +
-        '<button class="nut nut-phu" type="button" id="lai">Chụp lại</button>' +
-        '<button class="nut nut-chinh" type="button" id="dung">Dùng ảnh này</button>' +
-      '</div>';
-    document.getElementById('lai').onclick = veLivePreview;
-    document.getElementById('dung').onclick = function () {
-      oBao.innerHTML = '<div class="xong"><h2>Chụp trực tiếp thành công</h2>' +
-        '<p>Ảnh ' + w + '×' + h + ' lấy thẳng từ luồng camera, không qua bộ chọn tệp. ' +
-        'Ở Gate C1 ảnh sẽ được đóng watermark và lưu vào báo cáo nháp.</p></div>';
-      dk.innerHTML = '<button class="nut nut-phu" type="button" id="tiep">Chụp ảnh khác</button>';
-      document.getElementById('tiep').onclick = function () {
-        oBao.textContent = ''; veLivePreview();
-      };
-    };
-  }
-
-  /* ---------- Giai phong camera khi roi trang ---------- */
-
-  function dungStream() {
+  function dongCamera() {
     if (!stream) return;
     stream.getTracks().forEach(function (t) { t.stop(); });
     stream = null;
   }
-  window.addEventListener('pagehide', dungStream);
-  window.addEventListener('beforeunload', dungStream);
+
+  /* =============== Giao diện theo bước =============== */
+
+  function veDem() {
+    E('demAnh').textContent = daLuu ? 'Đã lưu ' + daLuu + ' ảnh' : '';
+  }
+
+  function veLive() {
+    E('video').style.display = '';
+    E('video').classList.add('day');
+    E('anh').style.display = 'none';
+    E('duoi').innerHTML = '<button id="chup" type="button" aria-label="Chụp ảnh"></button>';
+    E('chup').onclick = chup;
+    veDem();
+    veChipGps();
+  }
+
+  function veXemLai(dataUrl) {
+    E('video').style.display = 'none';
+    var im = E('anh');
+    im.src = dataUrl;
+    im.style.display = '';
+    E('duoi').innerHTML =
+      '<button class="nut" type="button" id="lai">Chụp lại</button>' +
+      '<button class="nut nut-chinh" type="button" id="luu">Lưu QC</button>';
+    E('lai').onclick = chupLai;
+    E('luu').onclick = luuQc;
+    veDem();
+  }
+
+  /* =============== Chụp & đóng dấu =============== */
+
+  function chup() {
+    var v = E('video');
+    if (!v.videoWidth) return banh('Camera chưa sẵn sàng, thử lại sau một giây.', true);
+    if (!conHan_()) return hetHan();
+
+    var thoiDiem = gioGhiHinh_();
+    E('chup').disabled = true;
+
+    // Chờ địa danh một khoảng CÓ CHẶN TRÊN rồi vẽ. Thiếu địa danh vẫn chụp.
+    var cho = (viTri && !diaDanh && dangTraDiaDanh)
+      ? Promise.race([dangTraDiaDanh, nghi_(DIA_DANH_CHO_MS)])
+      : Promise.resolve();
+
+    cho.then(function () {
+      var dataUrl = veAnhCoDau_(v, thoiDiem);
+      anhHienTai = dataUrl;
+      khoaHienTai = sinhKhoa_();
+      dongCamera();
+      veXemLai(dataUrl);
+    }).catch(function (e) {
+      E('chup').disabled = false;
+      banh('Không chụp được: ' + ((e && e.message) || e), true);
+    });
+  }
+
+  function nghi_(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  function sinhKhoa_() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  }
+
+  /** Vẽ khung hình ra canvas rồi ĐÓNG WATERMARK VÀO PIXEL. */
+  function veAnhCoDau_(v, thoiDiem) {
+    var w = v.videoWidth, h = v.videoHeight;
+    var ti = Math.min(1, CANH_DAI_MAX / Math.max(w, h));
+    w = Math.round(w * ti); h = Math.round(h * ti);
+
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var ctx = c.getContext('2d');
+    ctx.drawImage(v, 0, 0, w, h);
+
+    var t = trangThaiDinhVi_(viTri, gpsLoiMa, diaDanh);
+    var dong = dongWatermark_(ve, thoiDiem, t.nhan);
+
+    var co = Math.max(13, Math.round(w * 0.026));
+    var le = Math.round(w * 0.028);
+    var caoDong = Math.round(co * 1.34);
+
+    ctx.font = '600 ' + co + 'px -apple-system, "Segoe UI", Roboto, sans-serif';
+    ctx.textBaseline = 'top';
+
+    // Ngắt dòng dài (địa danh) theo chiều rộng thật.
+    var tatCa = [];
+    dong.forEach(function (d) {
+      ngatDong_(ctx, d, w - le * 2).forEach(function (x) { tatCa.push(x); });
+    });
+
+    var caoKhoi = caoDong * tatCa.length + le * 1.4;
+    var y0 = h - caoKhoi;
+
+    // Dải tối phía dưới để chữ đọc được trên mọi nền.
+    var g = ctx.createLinearGradient(0, y0 - caoDong, 0, h);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(0.35, 'rgba(0,0,0,.52)');
+    g.addColorStop(1, 'rgba(0,0,0,.74)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, y0 - caoDong, w, caoKhoi + caoDong);
+
+    // Hai lớp: viền tối + chữ sáng. Đọc được cả khi dải bị nền sáng lấn.
+    ctx.lineWidth = Math.max(2, co * 0.16);
+    ctx.strokeStyle = 'rgba(0,0,0,.85)';
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
+    ctx.fillStyle = '#ffffff';
+
+    var y = y0 + le * 0.6;
+    tatCa.forEach(function (d) {
+      ctx.strokeText(d, le, y);
+      ctx.fillText(d, le, y);
+      y += caoDong;
+    });
+
+    return c.toDataURL('image/jpeg', CHAT_LUONG);
+  }
+
+  function chupLai() {
+    anhHienTai = null; khoaHienTai = '';
+    moCamera();
+  }
+
+  /* =============== Lưu =============== */
+
+  function goiApi(than) {
+    return fetch(apiUrl, {
+      method: 'POST',
+      // text/plain tránh preflight CORS — Apps Script không trả preflight.
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(than),
+      redirect: 'follow'
+    }).then(function (r) { return r.json(); });
+  }
+
+  function luuQc() {
+    if (dangLuu || !anhHienTai) return;
+    if (!conHan_()) return hetHan();
+    dangLuu = true;
+    E('luu').disabled = true; E('lai').disabled = true;
+    che('Đang lưu ảnh vào hồ sơ…', 'Giữ màn hình mở cho tới khi xong.', '', true);
+
+    goiApi({
+      viec: 'tai_anh', ve: ve._chuoi,
+      ma_phieu: ve.ma_phieu, ma_bao_cao: ve.ma_bao_cao,
+      khoa: khoaHienTai, du_lieu: anhHienTai,
+      gps: gpsGuiLen_()
+    }).then(function (r) {
+      dangLuu = false;
+      if (r && r.ok) {
+        daLuu++;
+        anhHienTai = null;
+        heChe();
+        banh(r.anh && r.anh.da_co_tu_truoc
+          ? 'Ảnh này đã được lưu trước đó.'
+          : 'Đã lưu ' + ((r.anh && r.anh.ten_file) || 'ảnh') + '.');
+        moCamera();
+        return;
+      }
+      loiLuu((r && r.loi) || 'Máy chủ từ chối, không rõ lý do.');
+    }).catch(function (e) {
+      dangLuu = false;
+      loiLuu('Không gửi được lên máy chủ. Kiểm tra mạng rồi thử lại.\n\n' +
+             ((e && e.message) || e));
+    });
+  }
+
+  function loiLuu(chu) {
+    che('Chưa lưu được ảnh', chu,
+        '<button class="nut nut-chinh" type="button" id="thuLuu">Thử lưu lại</button>' +
+        '<button class="nut" type="button" id="boAnh">Bỏ ảnh này</button>', false);
+    E('thuLuu').onclick = function () {
+      heChe();
+      E('luu').disabled = false; E('lai').disabled = false;
+      luuQc();                        // CÙNG khóa — máy chủ chống trùng
+    };
+    E('boAnh').onclick = function () { heChe(); chupLai(); };
+  }
+
+  function hetHan() {
+    dongCamera();
+    che('Phiên chụp đã hết hạn',
+        'Vé chụp ảnh chỉ có hiệu lực trong thời gian ngắn. Hãy quay lại ứng dụng ' +
+        'QA/QC và bấm “Chụp ảnh” để mở lại trang này.', '', false);
+  }
+
+  /* =============== Khởi động =============== */
+
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'hidden') dungStream();
+    if (document.hidden) dongCamera();
+    else if (!anhHienTai && conHan_() && !dangLuu) moCamera();
   });
 
-  batDau();
+  window.addEventListener('pagehide', dongCamera);
+
+  var loiVe = '';
+  try { loiVe = napVe_(); } catch (e) { loiVe = 'Vé không đọc được'; }
+
+  if (loiVe) {
+    che('Không mở được phiên chụp',
+        loiVe + '.\n\nHãy mở trang này từ ứng dụng QA/QC bằng nút “Chụp ảnh”, ' +
+        'đừng mở trực tiếp bằng đường dẫn.', '', false);
+  } else if (!conHan_()) {
+    hetHan();
+  } else {
+    E('nhanPhieu').innerHTML =
+      String(ve.ma_phieu || '—') + ' <span>·</span> ' + String(ve.vai_tro || '—') +
+      ' <span>·</span> <span>' + String(ve.ho_ten || '') + '</span>';
+    batDinhVi();
+    moCamera();
+  }
 })();
 </script>
 </body>
