@@ -221,6 +221,7 @@
   var stream = null, ve = null, apiUrl = '', neo = null;
   var viTri = null, gpsLoiMa = 0, diaDanh = '', dangTraDiaDanh = null;
   var anhHienTai = null, khoaHienTai = '', daLuu = 0, dangLuu = false;
+  var maTieuChi = '';
 
   /* =============== Che phủ & thông báo =============== */
 
@@ -273,6 +274,10 @@
     // Neo giờ theo `iat` do máy chủ phát, cộng thời gian đã trôi kể từ lúc tải
     // trang. Nhờ vậy giờ đóng vào ảnh không phụ thuộc đồng hồ thiết bị.
     neo = { goc: Number(p.iat) * 1000, moc: now_() };
+    // Tiêu chí đang cần ảnh — chỉ là NHÃN để xếp ảnh vào đúng mục, không phải
+    // quyền. Vé không ký trường này vì cổng nhận ảnh @6 đọc nó từ thân yêu
+    // cầu; mức độ tin cậy giữ nguyên như đường chụp cũ (cũng do client khai).
+    maTieuChi = String(ts.tc || '').slice(0, 40);
     return '';
   }
 
@@ -555,6 +560,7 @@
   function luuQc() {
     if (dangLuu || !anhHienTai) return;
     if (!conHan_()) return hetHan();
+    var khoaDaGui = khoaHienTai;      // giữ lại để còn hỏi kết cục
     dangLuu = true;
     E('luu').disabled = true; E('lai').disabled = true;
     che('Đang lưu ảnh vào hồ sơ…', 'Giữ màn hình mở cho tới khi xong.', '', true);
@@ -562,6 +568,7 @@
     goiApi({
       viec: 'tai_anh', ve: ve._chuoi,
       ma_phieu: ve.ma_phieu, ma_bao_cao: ve.ma_bao_cao,
+      ma_tieu_chi: maTieuChi,
       khoa: khoaHienTai, du_lieu: anhHienTai,
       gps: gpsGuiLen_()
     }).then(function (r) {
@@ -570,9 +577,12 @@
         daLuu++;
         anhHienTai = null;
         heChe();
+        // "Đã tiếp nhận" KHÁC "đã vào hồ sơ". Cổng camera chỉ nhận ảnh và
+        // xếp hàng; việc ảnh có thuộc hồ sơ QC hay không do QA/QC quyết.
         banh(r.anh && r.anh.da_co_tu_truoc
-          ? 'Ảnh này đã được lưu trước đó.'
-          : 'Đã lưu ' + ((r.anh && r.anh.ten_file) || 'ảnh') + '.');
+          ? 'Ảnh này đã gửi trước đó.'
+          : 'Đã nhận ảnh, đang ghi vào hồ sơ…');
+        theoDoiKetCuc(khoaDaGui);
         moCamera();
         return;
       }
@@ -582,6 +592,38 @@
       loiLuu('Không gửi được lên máy chủ. Kiểm tra mạng rồi thử lại.\n\n' +
              ((e && e.message) || e));
     });
+  }
+
+  /* Bốn trạng thái PO chốt. Cổng camera KHÔNG quyết định — nó chỉ thuật lại
+     những gì QA/QC đã ghi. Hỏi vài lần rồi thôi: chậm nhất thì trigger định
+     kỳ của QA/QC cũng xử lý trong vài phút, và ảnh không mất đi đâu. */
+  var NHIP_HOI = [2500, 4000, 7000, 12000];
+
+  function theoDoiKetCuc(khoa) {
+    if (!khoa) return;
+    var lan = 0;
+    (function hoi() {
+      if (lan >= NHIP_HOI.length || !conHan_()) return;
+      var cho = NHIP_HOI[lan++];
+      setTimeout(function () {
+        goiApi({ viec: 'trang_thai_anh', ve: ve._chuoi, khoa: khoa })
+          .then(function (r) {
+            var a = r && r.ok && r.anh;
+            if (!a || !a.co) return hoi();
+            if (a.trang_thai === 'THANH_CONG') {
+              return banh('Đã lưu vào hồ sơ QC: ' + (a.ten_file || ''));
+            }
+            if (a.trang_thai === 'BI_TU_CHOI') {
+              return banh('Ảnh không được ghi: báo cáo đã chốt trước khi ảnh kịp vào.', true);
+            }
+            if (a.trang_thai === 'LOI') {
+              return banh('Tải ảnh thất bại. Hãy chụp lại.', true);
+            }
+            hoi();                       // DANG_TAI hoặc CHO_GHI — hỏi tiếp
+          })
+          .catch(function () { hoi(); });
+      }, cho);
+    })();
   }
 
   function loiLuu(chu) {
