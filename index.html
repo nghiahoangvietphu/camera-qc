@@ -616,10 +616,17 @@
             if (a.trang_thai === 'BI_TU_CHOI') {
               return banh('Ảnh không được ghi: báo cáo đã chốt trước khi ảnh kịp vào.', true);
             }
+            if (a.trang_thai === 'NHAN_KHONG_HOP_LE') {
+              return banh('Ảnh chưa được chấp nhận vì tiêu chí kiểm tra không hợp lệ. ' +
+                          'Vui lòng quay lại báo cáo QC và chụp lại.', true);
+            }
             if (a.trang_thai === 'LOI') {
               return banh('Tải ảnh thất bại. Hãy chụp lại.', true);
             }
-            hoi();                       // DANG_TAI hoặc CHO_GHI — hỏi tiếp
+            // CHUA ket thuc — DANG_TAI hoac CHO_GHI. KHONG bao thanh cong o
+            // day: "da tiep nhan" khac "da vao ho so". Hoi tiep, va `hoi()` tu
+            // dung khi het NHIP_HOI nen khong co vong hoi vo han.
+            hoi();
           })
           .catch(function () { hoi(); });
       }, cho);
