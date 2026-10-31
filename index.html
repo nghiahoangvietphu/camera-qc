@@ -221,6 +221,7 @@
   var stream = null, ve = null, apiUrl = '', neo = null;
   var viTri = null, gpsLoiMa = 0, diaDanh = '', dangTraDiaDanh = null;
   var anhHienTai = null, khoaHienTai = '', daLuu = 0, dangLuu = false;
+  var metaHienTai = null;      // metadata DONG BANG tai nhip bam may
   var maTieuChi = '';
 
   /* =============== Che phủ & thông báo =============== */
@@ -334,14 +335,31 @@
     return dangTraDiaDanh;
   }
 
-  function gpsGuiLen_() {
+  /**
+   * Anh chup metadata tai nhip bam may — DUNG nhung gia tri da dung de dung
+   * watermark, khong hon khong kem.
+   *
+   * `chup_luc` lay tu gioGhiHinh_(), tuc NEO theo `iat` cua ve: `iat` do may
+   * chu QA/QC dat va nam trong than ve DA KY HMAC, con phan troi la dong ho
+   * DON DIEU performance.now(). Doi gio thiet bi khong lam lech duoc no.
+   */
+  function anhChupMeta_(chupLuc) {
     var t = trangThaiDinhVi_(viTri, gpsLoiMa, diaDanh);
-    var g = { trang_thai: t.ma };
+    var m = { trang_thai: t.ma, chup_luc: chupLuc };
     if (viTri) {
-      g.lat = viTri.lat; g.lng = viTri.lng;
-      g.do_chinh_xac = viTri.do_chinh_xac; g.thoi_diem = viTri.thoi_diem;
+      m.lat = viTri.lat; m.lng = viTri.lng;
+      m.do_chinh_xac = viTri.do_chinh_xac; m.thoi_diem = viTri.thoi_diem;
     }
-    return g;
+    // Chi gui dia danh khi THAT SU co. Khong co thi bo han khoa — de may chu
+    // ghi trong, chu khong ghi mot chuoi rong gia lam "da tra cuu".
+    if (diaDanh) m.dia_danh = String(diaDanh);
+    return m;
+  }
+
+  /** Meta de gui len. Chua chup thi tra trang thai hien tai (khong co anh). */
+  function gpsGuiLen_() {
+    if (metaHienTai) return metaHienTai;
+    return { trang_thai: trangThaiDinhVi_(viTri, gpsLoiMa, diaDanh).ma };
   }
 
   /* =============== Camera =============== */
@@ -465,6 +483,12 @@
       var dataUrl = veAnhCoDau_(v, thoiDiem);
       anhHienTai = dataUrl;
       khoaHienTai = sinhKhoa_();
+      // DONG BANG metadata o DUNG thoi diem dung watermark.
+      //
+      // Khong doc lai luc bam Luu: giua chup va luu, GPS co the cap nhat hoac
+      // dia danh moi ve. Luu gia tri khac voi gia tri da in len anh thi bang
+      // ANH va pixel noi hai dieu khac nhau — do la mau thuan bang chung.
+      metaHienTai = anhChupMeta_(thoiDiem);
       dongCamera();
       veXemLai(dataUrl);
     }).catch(function (e) {
@@ -541,7 +565,7 @@
   }
 
   function chupLai() {
-    anhHienTai = null; khoaHienTai = '';
+    anhHienTai = null; khoaHienTai = ''; metaHienTai = null;
     moCamera();
   }
 
@@ -575,7 +599,7 @@
       dangLuu = false;
       if (r && r.ok) {
         daLuu++;
-        anhHienTai = null;
+        anhHienTai = null; metaHienTai = null;
         heChe();
         // "Đã tiếp nhận" KHÁC "đã vào hồ sơ". Cổng camera chỉ nhận ảnh và
         // xếp hàng; việc ảnh có thuộc hồ sơ QC hay không do QA/QC quyết.
@@ -603,7 +627,18 @@
     if (!khoa) return;
     var lan = 0;
     (function hoi() {
-      if (lan >= NHIP_HOI.length || !conHan_()) return;
+      // Het nhip hoi ma anh CHUA co ket cuc: noi ro phai lam gi, dung im lang.
+      //
+      // Khoang hoi toi da ~25,5 giay, con viec duyet CHO_GHI xay ra khi nguoi
+      // dung nop bao cao, mo lai danh sach anh, hoac trigger 5 phut chay. Hai
+      // khoang nay lech nhau mot bac do lon (docs/53 muc 29.5). KHONG keo dai
+      // polling thanh 5 phut — giu may chu nhan roi, va chi dan nguoi dung ve
+      // dung cho co cau tra loi.
+      if (lan >= NHIP_HOI.length) {
+        return banh('Ảnh đang được xử lý. Vui lòng quay lại báo cáo QC và ' +
+                    'làm mới danh sách ảnh để kiểm tra kết quả.');
+      }
+      if (!conHan_()) return;
       var cho = NHIP_HOI[lan++];
       setTimeout(function () {
         goiApi({ viec: 'trang_thai_anh', ve: ve._chuoi, khoa: khoa })
