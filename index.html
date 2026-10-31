@@ -42,16 +42,6 @@
     background: linear-gradient(180deg, rgba(0,0,0,.72), rgba(0,0,0,0));
     display: flex; flex-direction: column; gap: 6px; pointer-events: none;
   }
-  /* Nut quay ve: vung bam >= 44px theo huong dan iPhone; #tren co
-     pointer-events:none nen nut phai tu bat lai. */
-  #quayVe {
-    align-self: flex-start; pointer-events: auto;
-    min-height: 44px; padding: 10px 16px 10px 12px; border-radius: 999px;
-    font: 600 15px/1.2 inherit; color: var(--chu);
-    background: rgba(0,0,0,.62); border: 1px solid var(--vien);
-    display: inline-flex; align-items: center; gap: 6px;
-  }
-  #quayVe:active { transform: scale(.97); }
   #nhanPhieu { font-size: 15px; font-weight: 600; letter-spacing: .2px; }
   #nhanPhieu span { color: var(--mo); font-weight: 400; }
   .chip {
@@ -67,12 +57,19 @@
   .chip u { text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* --- Thanh duoi: dieu khien --- */
+  /* Vung thao tac: HAI hang. Hang tren doi theo trang thai (nut chup, hoac
+     Chup lai / Luu QC); hang duoi la nut quay ve, dung yen.
+     padding-bottom da gom safe-area nen nut khong bi thanh cong cu che. */
   #duoi {
     position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
     padding: 18px 16px calc(var(--an-toan-duoi) + 18px);
-    background: linear-gradient(0deg, rgba(0,0,0,.78), rgba(0,0,0,0));
-    display: flex; align-items: center; justify-content: center; gap: 14px;
+    background: linear-gradient(0deg, rgba(0,0,0,.84), rgba(0,0,0,0));
+    display: flex; flex-direction: column; gap: 12px;
   }
+  #duoiChinh { display: flex; align-items: center; justify-content: center; gap: 14px; }
+  /* `.nut` co flex:1 1 0 — trong cot thi no se gian cao ra, phai tat di. */
+  #quayVe { flex: none; width: 100%; min-height: 48px; font-size: 16px; }
+  #quayVe:disabled { opacity: .5; }
   #chup {
     width: 78px; height: 78px; border-radius: 50%; flex: none;
     background: #fff; border: 5px solid rgba(255,255,255,.38);
@@ -90,6 +87,9 @@
   .nut:disabled { opacity: .5; }
   #demAnh { position: absolute; right: 16px; bottom: calc(var(--an-toan-duoi) + 34px);
             font-size: 13px; color: var(--mo); }
+  /* Khi hang quay ve hien ra, vung thao tac cao them ~60px — nhac bo dem len
+     cho khoi de chong len nut. */
+  #duoi.co-quay-ve ~ #demAnh { bottom: calc(var(--an-toan-duoi) + 94px); }
 
   /* --- Che phu: dang luu / loi / huong dan --- */
   #che {
@@ -127,12 +127,14 @@
     <img id="anh" alt="Ảnh vừa chụp, đã đóng dấu thông tin ghi hình">
 
     <div id="tren">
-      <button id="quayVe" type="button" data-quay-ve hidden>← Quay về QA/QC</button>
       <div id="nhanPhieu">—</div>
       <div class="chip" id="chipGps"><b></b><u>Đang xác định vị trí…</u></div>
     </div>
 
-    <div id="duoi"></div>
+    <div id="duoi">
+      <div id="duoiChinh"></div>
+      <button class="nut" id="quayVe" type="button" data-quay-ve hidden>← Quay về QA/QC</button>
+    </div>
     <div id="demAnh"></div>
     <div id="banh"></div>
   </div>
@@ -457,7 +459,7 @@
     E('video').style.display = '';
     E('video').classList.add('day');
     E('anh').style.display = 'none';
-    E('duoi').innerHTML = '<button id="chup" type="button" aria-label="Chụp ảnh"></button>';
+    E('duoiChinh').innerHTML = '<button id="chup" type="button" aria-label="Chụp ảnh"></button>';
     E('chup').onclick = chup;
     veDem();
     veChipGps();
@@ -468,7 +470,7 @@
     var im = E('anh');
     im.src = dataUrl;
     im.style.display = '';
-    E('duoi').innerHTML =
+    E('duoiChinh').innerHTML =
       '<button class="nut" type="button" id="lai">Chụp lại</button>' +
       '<button class="nut nut-chinh" type="button" id="luu">Lưu QC</button>';
     E('lai').onclick = chupLai;
@@ -597,7 +599,7 @@
     if (dangLuu || !anhHienTai) return;
     if (!conHan_()) return hetHan();
     var khoaDaGui = khoaHienTai;      // giữ lại để còn hỏi kết cục
-    dangLuu = true;
+    dangLuu = true; capNhatNutQuayVe_();
     E('luu').disabled = true; E('lai').disabled = true;
     che('Đang lưu ảnh vào hồ sơ…', 'Giữ màn hình mở cho tới khi xong.', '', true);
 
@@ -608,7 +610,7 @@
       khoa: khoaHienTai, du_lieu: anhHienTai,
       gps: gpsGuiLen_()
     }).then(function (r) {
-      dangLuu = false;
+      dangLuu = false; capNhatNutQuayVe_();
       if (r && r.ok) {
         daLuu++;
         anhHienTai = null; metaHienTai = null;
@@ -627,7 +629,7 @@
       }
       loiLuu((r && r.loi) || 'Máy chủ từ chối, không rõ lý do.');
     }).catch(function (e) {
-      dangLuu = false;
+      dangLuu = false; capNhatNutQuayVe_();
       loiLuu('Không gửi được lên máy chủ. Kiểm tra mạng rồi thử lại.\n\n' +
              ((e && e.message) || e));
     });
@@ -746,10 +748,27 @@
     if (n) { ev.preventDefault(); quayVeQaQc(); }
   });
 
-  /** Hiện nút quay về trên thanh trên. Gọi khi đã ACK hoặc khi người dùng dừng. */
+  /** Hiện nút quay về ở vùng thao tác. Gọi khi đã ACK hoặc khi người dùng dừng. */
   function hienNutQuayVe() {
     var n = E('quayVe');
     if (n) n.hidden = false;
+    var d = E('duoi');
+    if (d) d.classList.add('co-quay-ve');
+    capNhatNutQuayVe_();
+  }
+
+  /**
+   * Khoá nút trong lúc đang gửi ảnh.
+   *
+   * Rời trang giữa chừng là để người dùng tin ảnh đã lưu trong khi yêu cầu còn
+   * đang bay — chưa có ACK thì chưa có gì chắc chắn. Khoá nút là cách nói điều
+   * đó mà không phải dựng thêm hộp thoại.
+   */
+  function capNhatNutQuayVe_() {
+    var n = E('quayVe');
+    if (!n) return;
+    n.disabled = !!dangLuu;
+    n.textContent = dangLuu ? 'Đang gửi ảnh…' : '← Quay về QA/QC';
   }
 
   /* =============== Khởi động =============== */
