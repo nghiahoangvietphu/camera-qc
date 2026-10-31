@@ -42,6 +42,16 @@
     background: linear-gradient(180deg, rgba(0,0,0,.72), rgba(0,0,0,0));
     display: flex; flex-direction: column; gap: 6px; pointer-events: none;
   }
+  /* Nut quay ve: vung bam >= 44px theo huong dan iPhone; #tren co
+     pointer-events:none nen nut phai tu bat lai. */
+  #quayVe {
+    align-self: flex-start; pointer-events: auto;
+    min-height: 44px; padding: 10px 16px 10px 12px; border-radius: 999px;
+    font: 600 15px/1.2 inherit; color: var(--chu);
+    background: rgba(0,0,0,.62); border: 1px solid var(--vien);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  #quayVe:active { transform: scale(.97); }
   #nhanPhieu { font-size: 15px; font-weight: 600; letter-spacing: .2px; }
   #nhanPhieu span { color: var(--mo); font-weight: 400; }
   .chip {
@@ -117,6 +127,7 @@
     <img id="anh" alt="Ảnh vừa chụp, đã đóng dấu thông tin ghi hình">
 
     <div id="tren">
+      <button id="quayVe" type="button" data-quay-ve hidden>← Quay về QA/QC</button>
       <div id="nhanPhieu">—</div>
       <div class="chip" id="chipGps"><b></b><u>Đang xác định vị trí…</u></div>
     </div>
@@ -409,7 +420,8 @@
 
   function loiCamera(e) {
     var ten = (e && e.name) || 'Lỗi';
-    var chu, nut = '<button class="nut" type="button" id="thuLai">Thử mở lại camera</button>';
+    var chu, nut = '<button class="nut" type="button" id="thuLai">Thử mở lại camera</button>' +
+                   NUT_QUAY_VE;
     if (ten === 'NotAllowedError' && (trongIframe_() || chinhSachChanCamera_())) {
       chu = 'Trang đang bị nhúng trong một trang khác và trang đó không cho phép ' +
             'dùng camera.\n\nHãy mở Camera QC bằng đường dẫn riêng trên Safari ' +
@@ -606,6 +618,9 @@
         banh(r.anh && r.anh.da_co_tu_truoc
           ? 'Ảnh này đã gửi trước đó.'
           : 'Đã nhận ảnh, đang ghi vào hồ sơ…');
+        // Máy chủ ĐÃ ACK — từ đây người dùng được phép rời đi. Không chờ
+        // THANH_CONG: ảnh còn ở CHO_GHI, và việc duyệt xảy ra bên QA/QC.
+        hienNutQuayVe();
         theoDoiKetCuc(khoaDaGui);
         moCamera();
         return;
@@ -671,7 +686,8 @@
   function loiLuu(chu) {
     che('Chưa lưu được ảnh', chu,
         '<button class="nut nut-chinh" type="button" id="thuLuu">Thử lưu lại</button>' +
-        '<button class="nut" type="button" id="boAnh">Bỏ ảnh này</button>', false);
+        '<button class="nut" type="button" id="boAnh">Bỏ ảnh này</button>' +
+        NUT_QUAY_VE, false);
     E('thuLuu').onclick = function () {
       heChe();
       E('luu').disabled = false; E('lai').disabled = false;
@@ -684,7 +700,56 @@
     dongCamera();
     che('Phiên chụp đã hết hạn',
         'Vé chụp ảnh chỉ có hiệu lực trong thời gian ngắn. Hãy quay lại ứng dụng ' +
-        'QA/QC và bấm “Chụp ảnh” để mở lại trang này.', '', false);
+        'QA/QC và bấm “Chụp ảnh” để mở lại trang này.', NUT_QUAY_VE, false);
+  }
+
+  /* =============== Quay về QA/QC ===============
+
+     Tab này do QA/QC mở bằng window.open(), KHÔNG kèm noopener — nên nó là tab
+     "script-closable" và window.close() được phép. Đóng tab là cách DUY NHẤT
+     đưa người dùng về ĐÚNG tab QA/QC đang mở: nó giữ nguyên báo cáo và bước 4
+     của wizard, không tạo lại phiếu, không mở thêm tab.
+
+     KHÔNG điều hướng tới URL QA/QC: làm thế là mở thêm một tab/phiên thứ hai,
+     và URL quay về sẽ phải mang theo thứ gì đó để định vị lại báo cáo. Ở đây
+     không có URL quay về nào, nên cũng không có chỗ nào để lọt token phiên hay
+     vé HMAC.
+
+     KHÔNG tự gọi khi ảnh vừa ACK: chỉ chạy khi người dùng BẤM. Ảnh mới ở
+     CHO_GHI, chưa phải THANH_CONG — đóng tab hộ người dùng là vừa cướp quyền
+     quyết định vừa dễ bị hiểu là "đã xong".
+
+     Safari/Chrome trên iPhone KHÔNG bảo đảm cho đóng tab: nếu người dùng tới
+     đây bằng liên kết dự phòng (rel="noopener") thì tab không script-closable.
+     Nên luôn kiểm lại và có đường đi tiếp bằng thao tác tay. */
+  var NUT_QUAY_VE =
+    '<button class="nut nut-chinh" type="button" data-quay-ve>← Quay về QA/QC</button>';
+
+  function quayVeQaQc() {
+    try { window.close(); } catch (e) { /* vài trình duyệt ném thay vì lờ đi */ }
+    // window.close() không đồng bộ ở mọi nơi — chờ một nhịp rồi mới kết luận.
+    setTimeout(function () {
+      if (window.closed) return;
+      che('Hãy chuyển về tab QA/QC',
+          'Trình duyệt không cho trang này tự đóng. Tab QA/QC vẫn đang mở — ' +
+          'hãy chuyển sang tab đó, rồi bấm “Làm mới ảnh” để thấy ảnh vừa chụp.',
+          '<button class="nut" type="button" id="oLaiDay">Ở lại trang chụp</button>',
+          false);
+      var n = E('oLaiDay');
+      if (n) n.onclick = function () { heChe(); if (conHan_()) moCamera(); };
+    }, 400);
+  }
+
+  /* Uỷ quyền sự kiện: nút quay về được vẽ lại nhiều lần trong lớp che. */
+  document.addEventListener('click', function (ev) {
+    var n = ev.target && ev.target.closest && ev.target.closest('[data-quay-ve]');
+    if (n) { ev.preventDefault(); quayVeQaQc(); }
+  });
+
+  /** Hiện nút quay về trên thanh trên. Gọi khi đã ACK hoặc khi người dùng dừng. */
+  function hienNutQuayVe() {
+    var n = E('quayVe');
+    if (n) n.hidden = false;
   }
 
   /* =============== Khởi động =============== */
