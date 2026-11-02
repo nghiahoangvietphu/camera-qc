@@ -167,6 +167,13 @@
   var CANH_DAI_MAX = 1600;          // khớp giới hạn 3 MB của API
   var CHAT_LUONG = 0.82;
   var GPS_CHO_MS = 12000;           // chờ định vị lần đầu
+  /* GPS-01 (PO chốt §69 câu 14): tuổi tối đa của một GPS fix tại NHỊP BẤM MÁY.
+     Phải BẰNG GPS_TUOI_FIX_MAX_MS trong camera-api/src/Code.gs — ca kiểm GP-21
+     chốt hai hằng này bằng nhau. */
+  var GPS_TUOI_FIX_MAX_MS = 30000;
+  /* Dấu phiên bản giao thức upload (PO chốt §70.7 phương án B). PHẢI ≥
+     GIAO_THUC_TOI_THIEU trong camera-api/src/Code.gs — ca kiểm GP-26 chốt. */
+  var GIAO_THUC = 2;
   var DIA_DANH_CHO_MS = 1200;       // chờ địa danh ngay trước khi vẽ, có chặn trên
 
   var DINH_VI = {
@@ -233,6 +240,7 @@
   var E = function (id) { return document.getElementById(id); };
   var stream = null, ve = null, apiUrl = '', neo = null;
   var viTri = null, gpsLoiMa = 0, diaDanh = '', dangTraDiaDanh = null;
+  var gpsWatchId = null;
   var anhHienTai = null, khoaHienTai = '', daLuu = 0, dangLuu = false;
   var metaHienTai = null;      // metadata DONG BANG tai nhip bam may
   var maTieuChi = '';
@@ -311,25 +319,69 @@
 
   function veChipGps() {
     var t = trangThaiDinhVi_(viTri, gpsLoiMa, diaDanh);
-    var lop = t.ma === DINH_VI.CO_DIA_DANH ? 'ok'
+    // GPS-01: fix QUA CU hien nhu CHUA co vi tri, vi luu anh se bi tu choi.
+    // KHONG doi bon cau cua trangThaiDinhVi_ — PO da chot nguyen van bon cau do
+    // va CC-3 khoa lai; cho nay chi la lop VE CHIP.
+    var cu = !!viTri && !viTriDuDieuKien_();
+    var lop = cu ? 'khong'
+            : t.ma === DINH_VI.CO_DIA_DANH ? 'ok'
             : t.ma === DINH_VI.CHUA_RO_DIA_DANH ? 'cho' : 'khong';
     var c = E('chipGps');
     c.className = 'chip ' + lop;
     c.querySelector('u').textContent = t.nhan;
   }
 
+  /**
+   * GPS-01 (PO chốt §69 câu 16): THEO DÕI vị trí suốt phiên, không lấy một lần.
+   *
+   * Trước đây hàm này gọi `getCurrentPosition` ĐÚNG MỘT LẦN lúc khởi tạo trang
+   * và `viTri` không bao giờ được làm mới. Hệ quả đã thấy trên dữ liệu thật:
+   * bốn tấm ảnh trải 1 phút 43 giây mang toạ độ giống nhau đến từng chữ số —
+   * vì cả bốn dùng lại fix lúc MỞ TRANG. Vé sống 10 phút, nên dữ liệu khi đó
+   * nói “vị trí lúc mở Camera QC”, KHÔNG nói “vị trí lúc chụp” (§69.2).
+   *
+   * `moc_don_dieu` là mốc trên ĐỒNG HỒ ĐƠN ĐIỆU — cùng hệ đã neo `chup_luc`.
+   * Nhờ cùng một hệ, phép trừ tính tuổi fix mới có nghĩa (§69.3).
+   */
   function batDinhVi() {
     if (!navigator.geolocation) { gpsLoiMa = 2; veChipGps(); return; }
-    navigator.geolocation.getCurrentPosition(function (p) {
+    dungDinhVi();                         // không bao giờ để hai watch cùng chạy
+    gpsWatchId = navigator.geolocation.watchPosition(function (p) {
       gpsLoiMa = 0;
       viTri = { lat: p.coords.latitude, lng: p.coords.longitude,
-                do_chinh_xac: p.coords.accuracy, thoi_diem: p.timestamp };
+                do_chinh_xac: p.coords.accuracy,
+                thoi_diem: p.timestamp,   // đồng hồ TƯỜNG thiết bị — chỉ để truy nguyên
+                moc_don_dieu: now_() };   // đồng hồ ĐƠN ĐIỆU — dùng để tính tuổi
       veChipGps();
       hoiDiaDanh();
     }, function (e) {
+      // Một lần lỗi KHÔNG xoá fix đang có: `watchPosition` có thể báo lỗi tạm
+      // thời rồi lại có fix. Nhưng TỪ CHỐI QUYỀN thì fix cũ không còn ý nghĩa.
       gpsLoiMa = (e && e.code) || 2;      // 1 = từ chối quyền
+      if (gpsLoiMa === 1) viTri = null;
       veChipGps();
-    }, { enableHighAccuracy: true, timeout: GPS_CHO_MS, maximumAge: 30000 });
+    }, { enableHighAccuracy: true, timeout: GPS_CHO_MS, maximumAge: 0 });
+  }
+
+  /** Giải phóng watch. Gọi ở MỌI đường kết thúc vòng đời trang. */
+  function dungDinhVi() {
+    if (gpsWatchId === null) return;
+    try { navigator.geolocation.clearWatch(gpsWatchId); } catch (e) { /* đã cố */ }
+    gpsWatchId = null;
+  }
+
+  /** Tuổi fix hiện tại, đo bằng ĐỒNG HỒ ĐƠN ĐIỆU. `null` = chưa có fix. */
+  function tuoiFixMs_() {
+    if (!viTri || !isFinite(viTri.moc_don_dieu)) return null;
+    return Math.max(0, Math.round(now_() - viTri.moc_don_dieu));
+  }
+
+  /** Vị trí có đủ điều kiện GPS-01 để lưu ảnh hay không. */
+  function viTriDuDieuKien_() {
+    if (gpsLoiMa === 1) return false;                 // từ chối quyền
+    if (!viTri || !isFinite(viTri.lat) || !isFinite(viTri.lng)) return false;
+    var t = tuoiFixMs_();
+    return t !== null && t <= GPS_TUOI_FIX_MAX_MS;
   }
 
   /** Hỏi địa danh qua API. Thất bại thì im lặng — trạng thái 2 vẫn hợp lệ. */
@@ -362,6 +414,12 @@
     if (viTri) {
       m.lat = viTri.lat; m.lng = viTri.lng;
       m.do_chinh_xac = viTri.do_chinh_xac; m.thoi_diem = viTri.thoi_diem;
+      // GPS-01: ĐÓNG BĂNG tuổi fix tại NHỊP BẤM MÁY. Một lần thử lưu lại — có
+      // thể nhiều phút sau — gửi lại ĐÚNG giá trị này, KHÔNG tính lại theo giờ
+      // gửi. Nếu tính lại, một lần thử lại hợp lệ sẽ bị từ chối vì “fix cũ” dù
+      // ảnh được chụp đúng lúc có fix tốt (§69.4a).
+      var tf = tuoiFixMs_();
+      if (tf !== null) m.tuoi_fix_ms = tf;
     }
     // Chi gui dia danh khi THAT SU co. Khong co thi bo han khoa — de may chu
     // ghi trong, chu khong ghi mot chuoi rong gia lam "da tra cuu".
@@ -595,9 +653,42 @@
     }).then(function (r) { return r.json(); });
   }
 
+  /* Câu PO đã duyệt. Dùng NGUYÊN VĂN ở cả client và máy chủ. */
+  var GPS01_TIEU_DE = 'Chưa đủ điều kiện vị trí';
+  var GPS01_CHU =
+    'Hệ thống bắt buộc ghi nhận vị trí kiểm tra sản phẩm.\n\n' +
+    'Vui lòng bật chia sẻ vị trí trên điện thoại, sau đó chụp lại và lưu ảnh QC.';
+
+  /**
+   * GPS-01 phía client. Xét trên metadata ĐÃ ĐÓNG BĂNG của tấm ảnh đang có,
+   * KHÔNG xét trên trạng thái GPS hiện tại: tấm ảnh mang bằng chứng của lúc
+   * chụp, và watermark đã đóng vào pixel. Bật lại quyền vị trí BÂY GIỜ không
+   * làm tấm ảnh cũ trở thành hợp lệ — vì vậy câu PO duyệt nói “chụp lại”.
+   *
+   * Đây là lớp lịch sự để người dùng không phải chờ một lần gửi 3 MB mới biết
+   * bị từ chối. Cổng CÓ HIỆU LỰC nằm ở camera-api (`kiemViTriBatBuoc_`).
+   */
+  function anhDuDieuKienGps_() {
+    var m = metaHienTai;
+    if (!m) return false;
+    if (!isFinite(Number(m.lat)) || !isFinite(Number(m.lng))) return false;
+    var tf = Number(m.tuoi_fix_ms);
+    return isFinite(tf) && tf >= 0 && tf <= GPS_TUOI_FIX_MAX_MS;
+  }
+
   function luuQc() {
     if (dangLuu || !anhHienTai) return;
     if (!conHan_()) return hetHan();
+
+    // GPS-01: từ chối TRƯỚC khi gửi. KHÔNG xoá `anhHienTai`, KHÔNG đóng màn
+    // hình, KHÔNG mở lại camera — người dùng tự chọn Chụp lại khi đã bật quyền.
+    if (!anhDuDieuKienGps_()) {
+      che(GPS01_TIEU_DE, GPS01_CHU,
+        '<button class="nut nut-chinh" type="button" id="gpsChupLai">Chụp lại</button>' +
+        NUT_QUAY_VE, false);
+      E('gpsChupLai').onclick = function () { heChe(); chupLai(); };
+      return;
+    }
     var khoaDaGui = khoaHienTai;      // giữ lại để còn hỏi kết cục
     dangLuu = true; capNhatNutQuayVe_();
     E('luu').disabled = true; E('lai').disabled = true;
@@ -605,6 +696,7 @@
 
     goiApi({
       viec: 'tai_anh', ve: ve._chuoi,
+      giao_thuc: GIAO_THUC,          // máy chủ phân biệt được "trang cũ" với "thiếu GPS"
       ma_phieu: ve.ma_phieu, ma_bao_cao: ve.ma_bao_cao,
       ma_tieu_chi: maTieuChi,
       khoa: khoaHienTai, du_lieu: anhHienTai,
@@ -625,6 +717,18 @@
         hienNutQuayVe();
         theoDoiKetCuc(khoaDaGui);
         moCamera();
+        return;
+      }
+      // HAI nguyên nhân KHÁC NHAU, hai cách xử lý khác nhau. Không bao giờ
+      // hiển thị cái này cho cái kia.
+      if (r && r.ma_loi === 'GIAO_THUC_CU') return loiPhienBanCu();
+      if (r && r.ma_loi === 'THIEU_VI_TRI') {
+        // Máy chủ từ chối vì vị trí. Ảnh và metadata GIỮ NGUYÊN — người dùng
+        // bật quyền rồi tự chụp lại, y như nhánh client đã chặn.
+        che(GPS01_TIEU_DE, GPS01_CHU,
+          '<button class="nut nut-chinh" type="button" id="gpsChupLai">Chụp lại</button>' +
+          NUT_QUAY_VE, false);
+        E('gpsChupLai').onclick = function () { heChe(); chupLai(); };
         return;
       }
       loiLuu((r && r.loi) || 'Máy chủ từ chối, không rõ lý do.');
@@ -685,6 +789,24 @@
     })();
   }
 
+  /**
+   * Trang đang chạy là bản CŨ trong cache. Ảnh hiện tại không cứu được bằng
+   * cách thử lại — mã client cũ không gửi đủ dữ liệu — nên đường ra duy nhất
+   * là tải lại trang.
+   *
+   * `location.reload()` GIỮ phần băm, nên vé HMAC và địa chỉ API không mất
+   * (ca kiểm GP-31). Dùng `location.reload(true)` không còn tác dụng trên
+   * trình duyệt hiện đại, nên không dùng.
+   */
+  function loiPhienBanCu() {
+    dungDinhVi();
+    che('Phiên bản Camera QC đã cũ',
+        'Vui lòng tải lại trang để tiếp tục chụp và lưu ảnh QC.',
+        '<button class="nut nut-chinh" type="button" id="taiLai">Tải lại trang</button>' +
+        NUT_QUAY_VE, false);
+    E('taiLai').onclick = function () { location.reload(); };
+  }
+
   function loiLuu(chu) {
     che('Chưa lưu được ảnh', chu,
         '<button class="nut nut-chinh" type="button" id="thuLuu">Thử lưu lại</button>' +
@@ -700,6 +822,7 @@
 
   function hetHan() {
     dongCamera();
+    dungDinhVi();          // GPS-01: ve het han thi khong con viec gi can GPS
     che('Phiên chụp đã hết hạn',
         'Vé chụp ảnh chỉ có hiệu lực trong thời gian ngắn. Hãy quay lại ứng dụng ' +
         'QA/QC và bấm “Chụp ảnh” để mở lại trang này.', NUT_QUAY_VE, false);
@@ -778,7 +901,10 @@
     else if (!anhHienTai && conHan_() && !dangLuu) moCamera();
   });
 
-  window.addEventListener('pagehide', dongCamera);
+  window.addEventListener('pagehide', function () {
+    dongCamera();
+    dungDinhVi();          // GPS-01: giai phong watch dung vong doi trang
+  });
 
   var loiVe = '';
   try { loiVe = napVe_(); } catch (e) { loiVe = 'Vé không đọc được'; }
