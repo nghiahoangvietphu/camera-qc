@@ -216,7 +216,7 @@
   /** Năm thông tin đóng vào ảnh. Thứ tự này là thứ tự vẽ từ trên xuống. */
   function dongWatermark_(ve, thoiDiemMs, dinhViNhan) {
     return [
-      String(ve.ma_phieu || '—') + '  ·  ' + String(ve.vai_tro || '—'),
+      String(ve.nhan || ve.ma_phieu || '—') + '  ·  ' + String(ve.vai_tro || '—'),
       String(ve.ho_ten || '—'),
       dinhDangGio_(thoiDiemMs),
       String(dinhViNhan || 'Không rõ địa điểm ghi hình')
@@ -697,7 +697,10 @@
     goiApi({
       viec: 'tai_anh', ve: ve._chuoi,
       giao_thuc: GIAO_THUC,          // máy chủ phân biệt được "trang cũ" với "thiếu GPS"
+      // Ve ha tang KHONG mang ma phieu / ma bao cao; cong nhan anh tu choi
+      // thang neu thay chung di kem mot ve HT.
       ma_phieu: ve.ma_phieu, ma_bao_cao: ve.ma_bao_cao,
+      ma_nhiem_vu: ve.ma_nhiem_vu,
       ma_tieu_chi: maTieuChi,
       khoa: khoaHienTai, du_lieu: anhHienTai,
       gps: gpsGuiLen_()
@@ -917,7 +920,7 @@
     hetHan();
   } else {
     E('nhanPhieu').innerHTML =
-      String(ve.ma_phieu || '—') + ' <span>·</span> ' + String(ve.vai_tro || '—') +
+      String(ve.nhan || ve.ma_phieu || '—') + ' <span>·</span> ' + String(ve.vai_tro || '—') +
       ' <span>·</span> <span>' + String(ve.ho_ten || '') + '</span>';
     batDinhVi();
     moCamera();
