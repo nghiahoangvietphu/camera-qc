@@ -175,6 +175,7 @@
      GIAO_THUC_TOI_THIEU trong camera-api/src/Code.gs — ca kiểm GP-26 chốt. */
   var GIAO_THUC = 2;
   var DIA_DANH_CHO_MS = 1200;       // chờ địa danh ngay trước khi vẽ, có chặn trên
+  var GPS_XIN_LAI_CHO_MS = 2500;    // chờ hộp thoại quyền vị trí trả kết quả
 
   var DINH_VI = {
     CO_DIA_DANH: 'CO_DIA_DANH', CHUA_RO_DIA_DANH: 'CHUA_RO_DIA_DANH',
@@ -439,6 +440,23 @@
       getUserMedia bao NotAllowedError y nhu khi nguoi dung tu choi. Phan biet
       duoc hai cai nay la bai hoc cua C0: dung bat nguoi dung di sua Cai dat
       khi loi thuc ra nam o trang nhung. */
+  /**
+   * Stream con dung duoc khong — HAM THUAN, bo kiem goi truc tiep.
+   *
+   * Phai co IT NHAT mot track o trang thai 'live'. Mot stream da bi
+   * `dongCamera()` dung het track van la mot doi tuong that, nen kiem
+   * `if (stream)` thoi la sai: no se bo qua `getUserMedia` roi hien mot khung
+   * ngam dong bang.
+   */
+  function streamConSong_(s) {
+    if (!s || typeof s.getTracks !== 'function') return false;
+    var ds = s.getTracks() || [];
+    for (var i = 0; i < ds.length; i++) {
+      if (ds[i] && ds[i].readyState === 'live') return true;
+    }
+    return false;
+  }
+
   function trongIframe_() {
     try { return window.self !== window.top; } catch (e) { return true; }
   }
@@ -449,19 +467,38 @@
     } catch (e) { return false; }
   }
 
+  /**
+   * Mo camera. TRA VE Promise de goi duoc tuan tu voi xin quyen vi tri.
+   *
+   * CHROME TREN iOS XEP HANG MOT HOP THOAI QUYEN MOT LUC (P1 10/11/2026).
+   * Ban truoc goi `batDinhVi()` va `moCamera()` trong CUNG MOT NHIP luc nap
+   * trang. Tren Chrome iOS, hop thoai camera chiem cho, con yeu cau vi tri bi
+   * TU CHOI NGAY voi code 1 (PERMISSION_DENIED) va KHONG hien hop thoai nao —
+   * dung ba hien tuong PO bao: camera mo duoc, khong thay hoi vi tri, roi bao
+   * "Nguoi dung tu choi cap quyen ghi vi tri". Safari xep hang khac nen cung
+   * ma nguon van chay dung o do.
+   */
   function moCamera() {
     if (!window.isSecureContext) {
-      return che('Trang phải chạy trên HTTPS',
-                 'Trình duyệt chỉ cho mở camera trên kết nối an toàn. Hãy mở trang ' +
-                 'này bằng đường dẫn https://.', '', false);
+      che('Trang phải chạy trên HTTPS',
+          'Trình duyệt chỉ cho mở camera trên kết nối an toàn. Hãy mở trang ' +
+          'này bằng đường dẫn https://.', '', false);
+      return Promise.resolve();
     }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      return che('Thiết bị không hỗ trợ camera',
-                 'Trình duyệt này không cho phép mở camera trực tiếp. Hãy dùng Safari ' +
-                 'hoặc Chrome bản mới trên điện thoại.', '', false);
+      che('Thiết bị không hỗ trợ camera',
+          'Trình duyệt này không cho phép mở camera trực tiếp. Hãy dùng Safari ' +
+          'hoặc Chrome bản mới trên điện thoại.', '', false);
+      return Promise.resolve();
+    }
+    // Stream con song thi KHONG xin lai quyen: moi lan `getUserMedia` sau khi
+    // track bi stop() deu lam Chrome iOS hoi quyen lai tu dau.
+    if (streamConSong_(stream)) {
+      heChe(); veLive();
+      return Promise.resolve();
     }
     che('Đang mở camera…', 'Hãy cho phép truy cập camera khi được hỏi.', '', true);
-    navigator.mediaDevices.getUserMedia({
+    return navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' },
                width: { ideal: 1920 }, height: { ideal: 1080 } },
       audio: false
@@ -561,7 +598,10 @@
       // dia danh moi ve. Luu gia tri khac voi gia tri da in len anh thi bang
       // ANH va pixel noi hai dieu khac nhau — do la mau thuan bang chung.
       metaHienTai = anhChupMeta_(thoiDiem);
-      dongCamera();
+      // GIU STREAM SONG trong luc xem lai. Truoc day `dongCamera()` o day lam
+      // moi lan "Chup lai" phai `getUserMedia` lan nua, va Chrome iOS hoi
+      // quyen camera lai tu dau — dung hien tuong 6 cua P1. Stream van duoc
+      // giai phong o `visibilitychange`, `pagehide`, het han va sau khi luu.
       veXemLai(dataUrl);
     }).catch(function (e) {
       E('chup').disabled = false;
@@ -638,6 +678,9 @@
 
   function chupLai() {
     anhHienTai = null; khoaHienTai = ''; metaHienTai = null;
+    // `moCamera()` tu nhan ra stream con song va chi ve lai man live, khong
+    // xin quyen lan nua. Neu stream da bi dong (vi du vua chuyen tab) thi no
+    // moi goi `getUserMedia`.
     moCamera();
   }
 
@@ -683,9 +726,37 @@
     // GPS-01: từ chối TRƯỚC khi gửi. KHÔNG xoá `anhHienTai`, KHÔNG đóng màn
     // hình, KHÔNG mở lại camera — người dùng tự chọn Chụp lại khi đã bật quyền.
     if (!anhDuDieuKienGps_()) {
+      /* Quyen vi tri bi TU CHOI (code 1) thi xin lai PHAI nam trong mot cu chi
+       * nguoi dung: Chrome iOS chi hien hop thoai khi yeu cau xuat phat tu mot
+       * lan bam. Mot `watchPosition` goi trong lúc nap trang bi tu choi im
+       * lang, nen phai co nut nay — day la duong duy nhat de nguoi dung thay
+       * hop thoai quyen ma khong phai di sua Cai dat. */
+      var nutXin = gpsLoiMa === 1
+        ? '<button class="nut nut-chinh" type="button" id="gpsXinQuyen">' +
+          'Cho phép vị trí</button>'
+        : '';
       che(GPS01_TIEU_DE, GPS01_CHU,
-        '<button class="nut nut-chinh" type="button" id="gpsChupLai">Chụp lại</button>' +
+        nutXin +
+        '<button class="nut' + (nutXin ? '' : ' nut-chinh') +
+        '" type="button" id="gpsChupLai">Chụp lại</button>' +
         NUT_QUAY_VE, false);
+      var bXin = E('gpsXinQuyen');
+      if (bXin) bXin.onclick = function () {
+        bXin.disabled = true;
+        bXin.textContent = 'Đang xin quyền vị trí…';
+        batDinhVi();                       // TRONG cu chi bam
+        // Cho mot nhip de hop thoai quyen tra ket qua roi noi RO ket cuc.
+        setTimeout(function () {
+          if (gpsLoiMa === 1) {
+            bXin.disabled = false;
+            bXin.textContent = 'Cho phép vị trí';
+            banh('Trình duyệt vẫn chặn vị trí. Hãy bật quyền Vị trí cho ' +
+                 'trình duyệt trong Cài đặt điện thoại rồi bấm lại.', true);
+          } else {
+            heChe(); chupLai();
+          }
+        }, GPS_XIN_LAI_CHO_MS);
+      };
       E('gpsChupLai').onclick = function () { heChe(); chupLai(); };
       return;
     }
@@ -922,8 +993,10 @@
     E('nhanPhieu').innerHTML =
       String(ve.nhan || ve.ma_phieu || '—') + ' <span>·</span> ' + String(ve.vai_tro || '—') +
       ' <span>·</span> <span>' + String(ve.ho_ten || '') + '</span>';
-    batDinhVi();
-    moCamera();
+    /* TUAN TU, khong song song: cho hop thoai camera xong roi moi xin vi tri.
+     * Dung `.then(f, f)` de GPS van duoc xin ngay ca khi camera bi tu choi —
+     * nguoi dung co the cap camera sau, va khi do fix vi tri da san. */
+    moCamera().then(batDinhVi, batDinhVi);
   }
 })();
 </script>
