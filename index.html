@@ -359,6 +359,7 @@
       // Một lần lỗi KHÔNG xoá fix đang có: `watchPosition` có thể báo lỗi tạm
       // thời rồi lại có fix. Nhưng TỪ CHỐI QUYỀN thì fix cũ không còn ý nghĩa.
       gpsLoiMa = (e && e.code) || 2;      // 1 = từ chối quyền
+      ghiNhatKy_('gps-loi code=' + gpsLoiMa);
       if (gpsLoiMa === 1) viTri = null;
       veChipGps();
     }, { enableHighAccuracy: true, timeout: GPS_CHO_MS, maximumAge: 0 });
@@ -448,6 +449,15 @@
    * `if (stream)` thoi la sai: no se bo qua `getUserMedia` roi hien mot khung
    * ngam dong bang.
    */
+  /* NHAT KY KY THUAT — vong tron 40 muc, hien trong hop thoai loi camera.
+     KHONG ghi ve, chu ky, khoa hay toa do. Chi su kien + nhan thoi gian. */
+  var NHAT_KY = [];
+  function ghiNhatKy_(viec) {
+    NHAT_KY.push(new Date().toTimeString().slice(0, 8) + ' ' + viec);
+    if (NHAT_KY.length > 40) NHAT_KY.shift();
+  }
+  function nhatKyChu_() { return NHAT_KY.join('\n'); }
+
   function streamConSong_(s) {
     if (!s || typeof s.getTracks !== 'function') return false;
     var ds = s.getTracks() || [];
@@ -497,6 +507,8 @@
       heChe(); veLive();
       return Promise.resolve();
     }
+    ghiNhatKy_('xin-quyen-camera (' +
+      (stream ? 'stream cu da ended' : 'chua co stream') + ')');
     che('Đang mở camera…', 'Hãy cho phép truy cập camera khi được hỏi.', '', true);
     return navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' },
@@ -504,6 +516,11 @@
       audio: false
     }).then(function (s) {
       stream = s;
+      ghiNhatKy_('da-cap-quyen-camera');
+      // Theo doi track bi THU HOI boi trinh duyet. Khong doan: ghi lai that.
+      s.getTracks().forEach(function (t) {
+        t.onended = function () { ghiNhatKy_('track-ended (trinh duyet thu hoi)'); };
+      });
       var v = E('video');
       v.srcObject = s;
       return v.play().catch(function () {});
@@ -533,13 +550,16 @@
     } else {
       chu = 'Không mở được camera (' + ten + ').';
     }
-    che('Không mở được camera', chu, nut, false);
+    ghiNhatKy_('loi-camera ' + ten);
+    che('Không mở được camera', chu + '\n\n— Chi tiết kỹ thuật —\n' + nhatKyChu_(),
+        nut, false);
     var b = E('thuLai');
     if (b) b.onclick = function () { moCamera(); };
   }
 
   function dongCamera() {
     if (!stream) return;
+    ghiNhatKy_('dong-camera');
     stream.getTracks().forEach(function (t) { t.stop(); });
     stream = null;
   }
@@ -561,7 +581,19 @@
   }
 
   function veXemLai(dataUrl) {
-    E('video').style.display = 'none';
+    /* KHONG an #video nua (P1 UAT 4/6, hien tuong A).
+     *
+     * WebKit — va vi the ca Chrome tren iOS — DUNG track camera khi phan tu
+     * <video> tieu thu no khong con duoc ve. `display:none` lay <video> ra
+     * khoi layout, WebKit thay "khong con ai tieu thu" va KET THUC track. Khi
+     * do `streamConSong_()` tra false RAT DUNG, va "Chup lai" buoc phai goi
+     * `getUserMedia` lan nua — Chrome iOS hoi quyen lai tu dau. Khong phai ung
+     * dung tu goi thua, cung khong phai logic noi bo stop() stream: TRINH
+     * DUYET THU HOI.
+     *
+     * #anh nam SAU #video trong DOM va ca hai deu `position:absolute; inset:0`,
+     * nen chi can hien #anh la no phu kin — khong phai an #video. Nho the
+     * <video> con trong layout, track con song, va "Chup lai" chi can ve lai. */
     var im = E('anh');
     im.src = dataUrl;
     im.style.display = '';
@@ -677,6 +709,8 @@
   }
 
   function chupLai() {
+    ghiNhatKy_('chup-lai (stream ' +
+      (streamConSong_(stream) ? 'con song' : 'khong con') + ')');
     anhHienTai = null; khoaHienTai = ''; metaHienTai = null;
     // `moCamera()` tu nhan ra stream con song va chi ve lai man live, khong
     // xin quyen lan nua. Neu stream da bi dong (vi du vua chuyen tab) thi no
