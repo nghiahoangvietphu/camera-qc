@@ -1014,16 +1014,90 @@
     dungDinhVi();          // GPS-01: giai phong watch dung vong doi trang
   });
 
-  var loiVe = '';
-  try { loiVe = napVe_(); } catch (e) { loiVe = 'Vé không đọc được'; }
+  /* =============== HF09-G2 — LUOI AN TOAN CUOI =============== */
 
-  if (loiVe) {
-    che('Không mở được phiên chụp',
-        loiVe + '.\n\nHãy mở trang này từ ứng dụng QA/QC bằng nút “Chụp ảnh”, ' +
-        'đừng mở trực tiếp bằng đường dẫn.', '', false);
-  } else if (!conHan_()) {
-    hetHan();
-  } else {
+  /* Mot loi JavaScript ngoai cac khoi try/catch se de trang KET vinh vien o
+     chu "Dang mo camera…" voi vong xoay: khong bao gi, khong nut nao. Lop nay
+     bien moi loi nhu the thanh mot man hinh co chu va co loi ra.
+
+     KHONG in stack trace, KHONG in ve, khong in dia chi API. Chi mot MA THAM
+     CHIEU ngan de nhan vien doc qua Zalo cho ky thuat — ma do sinh tu gio, va
+     khong mang thong tin nao cua phien. */
+  var MA_THAM_CHIEU = 'CAM-' + String(Date.now()).slice(-6);
+  var daBaoLoiNang = false;
+
+  function loiNang_(nguon) {
+    if (daBaoLoiNang) return;         // mot man hinh loi, khong chong chat
+    daBaoLoiNang = true;
+    try { dongCamera(); dungDinhVi(); } catch (e) { /* dang don dep */ }
+    ghiNhatKy_('loi-nang ' + nguon);
+    che('Camera QC gặp lỗi',
+        'Trang chụp ảnh gặp lỗi và không tiếp tục được.\n\n' +
+        'Hãy bấm “Thử lại”. Nếu vẫn lỗi, hãy quay về QA/QC và báo mã bên dưới.\n\n' +
+        'Mã tham chiếu: ' + MA_THAM_CHIEU,
+        '<button class="nut nut-chinh" type="button" id="taiLai">Thử lại</button>' +
+        NUT_QUAY_VE, false);
+    var b = E('taiLai');
+    if (b) b.onclick = function () { location.reload(); };
+  }
+
+  window.addEventListener('error', function () { loiNang_('error'); });
+  window.addEventListener('unhandledrejection', function () {
+    loiNang_('unhandledrejection');
+  });
+
+  /* =============== Khởi động theo hai chế độ =============== */
+
+  /* CHE DO CHO (`#cho=1`) — HF09-G2.
+   *
+   * QA/QC mo tab nay NGAY trong nhip cham, truoc khi biet ve, roi moi dieu
+   * huong lai khi co ve. Nho the nhan vien khong bao gio nhin thay mot tab
+   * `about:blank` trang.
+   *
+   * Neu ve khong bao gio toi — tab QA/QC bi trinh duyet tam dung o nen, hoac
+   * mat mang giua chung — thi sau `CHO_TOI_DA_MS` trang TU bao, thay vi quay
+   * mai. Day la cho thoat khoi trang thai cho keo dai bat thuong.
+   *
+   * KHONG tu goi lai de xin ve: trang nay khong co phien QA/QC, va goi lai
+   * khi ket qua lan truoc chua xac dinh co the sinh hai ve. Nguoi dung quay
+   * ve QA/QC bam lai — duong do kiem lai day du dieu kien cap ve. */
+  var CHO_TOI_DA_MS = 25000;
+  var henCho = 0;
+
+  function dangChoVe_() { return !!docThamSo_().cho; }
+
+  function veManCho_() {
+    che('Đang chuẩn bị Camera QC…',
+        'Vui lòng chờ hệ thống xác nhận quyền chụp ảnh.', '', true);
+    clearTimeout(henCho);
+    henCho = setTimeout(function () {
+      if (!dangChoVe_()) return;        // ve da toi trong luc cho
+      che('Chưa nhận được vé chụp',
+          'Ứng dụng QA/QC chưa gửi được vé chụp sang trang này.\n\n' +
+          'Hãy quay về QA/QC và bấm “Chụp ảnh” lần nữa.',
+          '<button class="nut nut-chinh" type="button" id="choLai">Thử lại</button>' +
+          NUT_QUAY_VE, false);
+      var b = E('choLai');
+      if (b) b.onclick = function () { location.reload(); };
+    }, CHO_TOI_DA_MS);
+  }
+
+  function batDau_() {
+    clearTimeout(henCho);
+    var loiVe = '';
+    try { loiVe = napVe_(); } catch (e) { loiVe = 'Vé không đọc được'; }
+
+    if (loiVe) {
+      // Dang cho ve thi KHONG bao "thieu tham so" — do la trang thai binh
+      // thuong cua che do cho, khong phai loi.
+      if (dangChoVe_()) { veManCho_(); return; }
+      che('Không mở được phiên chụp',
+          loiVe + '.\n\nHãy mở trang này từ ứng dụng QA/QC bằng nút “Chụp ảnh”, ' +
+          'đừng mở trực tiếp bằng đường dẫn.', '', false);
+      return;
+    }
+    if (!conHan_()) { hetHan(); return; }
+
     E('nhanPhieu').innerHTML =
       String(ve.nhan || ve.ma_phieu || '—') + ' <span>·</span> ' + String(ve.vai_tro || '—') +
       ' <span>·</span> <span>' + String(ve.ho_ten || '') + '</span>';
@@ -1032,6 +1106,17 @@
      * nguoi dung co the cap camera sau, va khi do fix vi tri da san. */
     moCamera().then(batDinhVi, batDinhVi);
   }
+
+  /* QA/QC giao ve bang cach dat lai `location` — cung trang, khac phan bam,
+     nen trinh duyet ban `hashchange` chu KHONG nap lai trang. Khong co lop
+     nay thi tab se ket o man cho mai mai. */
+  window.addEventListener('hashchange', function () {
+    if (daBaoLoiNang) return;
+    ghiNhatKy_('nhan-ve-qua-hashchange');
+    batDau_();
+  });
+
+  batDau_();
 })();
 </script>
 </body>
